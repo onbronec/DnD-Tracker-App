@@ -1,120 +1,176 @@
-# 🎭 Formát D&D Efektů - Dokumentace
+# 🐉 DnD Combat Tracker
 
-## 📍 Kde najít a upravit efekty
+Jednoduchá aplikace pro sledování hit pointů, iniciativy a "Moci" během D&D bojů.
 
-Efekty jsou definovány v JavaScriptu na **řádcích 21-54** v objektu `predefinedEffects`.
+## 🚀 Spuštění aplikace
 
-## 📋 Struktura efektu
+### Nejjednodušší způsob:
+1. Stáhněte si soubor `dnd-tracker.html`
+2. Otevřete jej v libovolném moderním webovém prohlížeči (Chrome, Firefox, Safari, Edge)
+3. Aplikace je připravena k použití!
 
-```javascript
-'NázevEfektu': { 
-    type: 'buff|debuff|neutral', 
-    description: 'Popis efektu v češtině' 
+**Žádná instalace není potřeba** - aplikace běží kompletně v prohlížeči.
+
+## 📋 Funkce aplikace
+
+ (výchozí 0)
+- **Max Moc**: Maximální počet bodů "Moci" (výchozí 0)
+
+### 💾 Správa dat
+- **Uložit data**: Stáhne JSON soubor s aktuálními postavami včetně současných HP a efektů
+- **Načíst data (kumulativně)**: Přidá postavy ze souboru k existujícím (nepřepíše)
+- **Vymazat vše**: Smaže všechny postavy a monstra
+
+### ⚔️ Bojový systém
+
+#### Před bojem:
+- Přidejte všechny účastníky boje
+- Můžete ručně nastavit iniciativu některým postavám
+- Klikněte na "Zahájit boj"
+
+#### Zahájení boje:
+- Aplikace automaticky hodí iniciativou všem, kteří ji nemají nastavenou
+- Hodí se 1d20 + bonus na iniciativu
+- Všichni účastníci se seřadí podle iniciativy (nejvyšší první)
+
+#### Během boje:
+- **Aktuální postava na tahu** je zvýrazněna oranžově
+- **Postavy, které už hrály** v aktuálním kole jsou zobrazeny šedě
+- Kliknutím na "Další tah" přejdete k další postavě
+- Po posledním účastníkovi začne nové kolo
+
+#### Sledování stavu:
+- **HP**: Upravujte tlačítky +1, +10, -1, -10 nebo vlastní hodnoty
+- **HP bar**: Vizuální zobrazení zbývajících HP (zelená → žlutá → červená)
+- **Moc**: Pouze pro monstra - upravujte tlačítky +1, -1 nebo přímým zadáním
+- **Efekty**: Kliknutím na jméno postavy přidávejte D&D efekty (Poisoned, Paralyzed, atd.)
+- **Duplikace monster**: Tlačítko + u monster vytvoří číslovanou kopii
+
+### 🎮 Ovládání během boje
+
+#### Horní panel:
+- Zobrazuje aktuální kolo a postavu na tahu
+- Ukazuje pořadí iniciativy s barevným označením
+
+#### Karty postav:
+- **Oranžový rámeček**: Postava na tahu
+- **Šedé pozadí**: Postava už hrála v tomto kole
+- **Bílé pozadí**: Postava ještě nehrála
+
+#### Tlačítka:
+- **Zahájit boj**: Spustí bojový režim
+- **Další tah**: Přejde k další postavě v pořadí
+- **Ukončit boj**: Ukončí boj a obnoví všechny HP/Moc/efekty
+- **Uzavřit boj**: Ukončí boj, obnoví hráče a odstraní všechna monstra
+
+## 📁 Formát uložených dat
+
+Aplikace ukládá data ve formátu JSON:
+
+```json
+{
+  "characters": [
+    {
+      "name": "Aragorn",
+      "type": "player",
+      "maxHp": 45,
+      "currentHp": 32,
+      "initBonus": 3,
+      "maxPower": 0,
+      "currentPower": 0,
+      "effects": ["Blessed"]
+    },
+    {
+      "name": "1. Ork válečník", 
+      "type": "monster",
+      "maxHp": 15,
+      "currentHp": 8,
+      "initBonus": 1,
+      "maxPower": 3,
+      "currentPower": 2,
+      "effects": ["Frightened"]
+    }
+  ],
+  "timestamp": "2024-01-15T10:30:00.000Z"
 }
 ```
 
-### Typy efektů:
-- **`buff`** - Pozitivní efekty (zelené) 🟢
-- **`debuff`** - Negativní efekty (červené) 🔴  
-- **`neutral`** - Neutrální/situační efekty (modré) 🔵
+## 💡 Tipy pro použití
 
-## 🔴 Aktuální DEBUFFS
+### Příprava boje:
+1. Vytvořte si databázi monster s jejich statistikami
+2. Uložte si hráčské postavy
+3. Před každým bojem načtěte hráče a pak potřebná monstra (kumulativně)
 
-```javascript
-'Blinded': { type: 'debuff', description: 'Postava nevidí a automaticky neuspěje u kontrol založených na zraku. Útoky proti postavě mají výhodu, útoky postavy mají nevýhodu.' },
-'Charmed': { type: 'debuff', description: 'Postava nemůže útočit na toho, kdo ji okouzlil. Ten má výhodu na sociální interakce.' },
-'Deafened': { type: 'debuff', description: 'Postava neslyší a automaticky neuspěje u kontrol založených na sluchu.' },
-'Frightened': { type: 'debuff', description: 'Postava má nevýhodu na ability checks a útoky, dokud je zdroj strachu ve výhledu. Nemůže se dobrovolně přiblížit ke zdroji.' },
-'Grappled': { type: 'debuff', description: 'Rychlost postavy je 0. Končí, když je grappler neschopný nebo postava unikne.' },
-'Incapacitated': { type: 'debuff', description: 'Postava nemůže provádět akce ani reakce.' },
-'Paralyzed': { type: 'debuff', description: 'Postava je neschopná a nemůže se hýbat ani mluvit. Automaticky neuspěje u Str a Dex záchran. Útoky proti ní mají výhodu.' },
-'Petrified': { type: 'debuff', description: 'Postava je zkamenělá, neschopná a neuvědomělá. Má odolnost proti všem typům poškození.' },
-'Poisoned': { type: 'debuff', description: 'Postava má nevýhodu na útoky a ability checks.' },
-'Prone': { type: 'debuff', description: 'Pohyb pouze plazením. Nevýhoda na útoky. Útoky zblízka mají výhodu, na dálku nevýhodu.' },
-'Restrained': { type: 'debuff', description: 'Rychlost 0, nevýhoda na útoky a Dex záchranné hody. Útoky proti postavě mají výhodu.' },
-'Stunned': { type: 'debuff', description: 'Postava je neschopná, nemůže se hýbat a mluví jen nejasně. Automaticky neuspěje u Str a Dex záchran.' },
-'Unconscious': { type: 'debuff', description: 'Postava je neschopná, nemůže se hýbat ani mluvit, neuvědomělá. Automaticky neuspěje u Str a Dex záchran.' }
-```
+### Během hry:
+- Upravujte HP pomocí rychlých tlačítek nebo vlastních hodnot pro poškození/léčení
+- Kliknutím na jméno přidávejte efekty jako Poisoned, Frightened, Paralyzed
+- Pro více stejných monster použijte tlačítko + pro vytvoření očíslovaných kopií
+- Sledujte body Moci u monster pro speciální schopnosti
+- Používejte vizuální HP bar pro rychlý přehled stavu
 
-## 🟢 Aktuální BUFFS
+### Po boji:
+- **Ukončit boj**: Pro pokračování se stejnými postavami později
+- **Uzavřít boj**: Pro kompletní vyčištění monster a start nového dobrodružství
 
-```javascript
-'Blessed': { type: 'buff', description: 'Bonus k záchranným hodům a útokům.' },
-'Hasted': { type: 'buff', description: 'Dvojnásobná rychlost, +2 AC, výhoda na Dex záchranné hody, extra akce.' },
-'Inspired': { type: 'buff', description: 'Bardic Inspiration - bonus k příštímu hodu.' },
-'Protected': { type: 'buff', description: 'Magická ochrana poskytující bonus k AC nebo záchranným hodům.' },
-'Enlarged': { type: 'buff', description: 'Zvětšená velikost, výhoda na Strength checks a záchranné hody, extra poškození.' },
-'Flying': { type: 'buff', description: 'Schopnost letu díky kouzlu nebo schopnosti.' },
-'Invisible': { type: 'buff', description: 'Postava je neviditelná. Útoky proti ní mají nevýhodu, její útoky mají výhodu.' },
-'Resistance': { type: 'buff', description: 'Odolnost proti určitému typu poškození.' },
-'Advantage': { type: 'buff', description: 'Výhoda na určitý typ hodů.' },
-'Raging': { type: 'buff', description: 'Barbarian Rage - bonus k poškození, odolnost proti fyzickému poškození.' },
-'Dodging': { type: 'buff', description: 'Postava se vyhýbá - útoky proti ní mají nevýhodu.' }
-```
+## 🔧 Technické informace
 
-## 🔵 Aktuální NEUTRÁLNÍ
+- **Technologie**: HTML5, CSS3, JavaScript
+- **Kompatibilita**: Všechny moderní prohlížeče
+- **Ukládání**: Lokální soubory (JSON)
+- **Velikost**: Cca 20 KB
 
-```javascript
-'Concentrating': { type: 'neutral', description: 'Postava se soustředí na kouzlo. Při poškození hází záchranný hod na koncentraci.' },
-'Marked': { type: 'neutral', description: 'Postava je označená pro sledování nebo speciální efekt.' }
-```
+## 🐛 Řešení problémů
 
-## ➕ Jak přidat nový efekt
+### Aplikace se nenačte:
+- Zkontrolujte, že používáte moderní prohlížeč
+- Ujistěte se, že je JavaScript povolen
 
-### 1. Přidejte do objektu `predefinedEffects`:
+### Nelze načíst soubor:
+- Zkontrolujte, že je soubor ve formátu JSON
+- Ověřte, že byl vytvořen touto aplikací
 
-```javascript
-'NovýEfekt': { 
-    type: 'buff', // nebo 'debuff' nebo 'neutral'
-    description: 'Popis toho, co efekt dělá' 
-},
-```
+### Ztracené údaje:
+- Data se ukládají pouze do souborů, nezapomeňte pravidelně ukládat
+- Po zavření prohlížeče se všechna neuložená data ztratí
 
-### 2. Přidejte do HTML selectu (řádky 600-650):
+## 📝 Verze a změny
 
-```html
-<option value="NovýEfekt">Nový Efekt (České jméno)</option>
-```
+## 🆕 Nové funkce
 
-## 🎨 Vzhled efektů
+### 🔄 Kumulativní načítání
+- Načítání souborů přidává postavy k existujícím místo přepsání
+- Ideální pro kombinování hráčů a různých skupin monster
 
-- **Debuffs**: Červené pozadí s bílým textem
-- **Buffs**: Zelené pozadí s bílým textem  
-- **Neutral**: Modré pozadí s bílým textem
-- **Vlastní efekty**: Automaticky modré (neutral)
+### 🎭 Systém efektů
+- Kliknutím na jméno postavy otevřete správu efektů
+- Přidávejte D&D stavy jako Poisoned, Paralyzed, Frightened, Blessed
+- Efekty jsou vizuálně zobrazeny jako barevné tagy
 
-## 💡 Příklady nových efektů
+### 🐺 Duplikace monster
+- Tlačítko + u monster vytvoří očíslovanou kopii
+- Všechna monstra se stejným jménem se automaticky přečíslují
+- Ideální pro skupiny goblinů, orků atd.
 
-```javascript
-// Nový debuff
-'Cursed': { 
-    type: 'debuff', 
-    description: 'Postava je prokletá a má nevýhodu na všechny záchranné hody.' 
-},
+### ⚔️ Pokročilé HP managementy  
+- Tlačítka pro +/-1 a +/-10 HP
+- Vlastní pole pro zadání konkrétního poškození
+- Vlastní pole pro zadání konkrétního léčení
 
-// Nový buff
-'Heroism': { 
-    type: 'buff', 
-    description: 'Postava je imunní vůči strachu a získává dočasné HP.' 
-},
+### 🔒 Uzavření boje
+- Nové tlačítko "Uzavřít boj" odstraní všechna monstra
+- Hráči zůstávají s obnoveným stavem
+- Ideální pro konec dungeonu nebo dobrodružství
 
-// Neutrální efekt
-'Transformed': { 
-    type: 'neutral', 
-    description: 'Postava je proměněna v jinou formu.' 
-}
-```
+### v1.1
+- Kumulativní načítání dat
+- Systém efektů a stavů
+- Duplikace monster s automatickým číslováním  
+- Pokročilé HP ovládání (+/-1, +/-10, vlastní hodnoty)
+- Uzavření boje s odstraněním monster
+- Uložení aktuálních HP a efektů
+- Oddělení Moci pouze pro monstra
 
-## 📝 Poznámky
+---
 
-- Názvy efektů jsou **case-sensitive** (záleží na velikosti písmen)
-- Popisy se zobrazují jako tooltip při najetí myší na efekt
-- Vlastní efekty (nepsané v `predefinedEffects`) jsou automaticky modré
-- Efekty se ukládají do JSON souborů spolu s postavami
-
-## 🔧 Technické detaily
-
-- Efekty jsou uloženy v poli `character.effects[]`
-- Funkce `getEffectClass()` určuje barvu podle typu
-- Funkce `getEffectDescription()` vrací popis efektu
-- Modal pro správu efektů se otevírá kliknutím na jméno postavy
+**Vytvořeno pro D&D 5e, ale použitelné i pro jiné RPG systémy** 🎲
