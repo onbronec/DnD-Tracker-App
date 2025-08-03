@@ -578,6 +578,7 @@
                 type,
                 maxHp,
                 currentHp,
+                tempHp: 0,
                 initBonus,
                 initiative: null,
                 maxPower,
@@ -622,6 +623,7 @@
                 initiative: null,
                 currentHp: original.maxHp,
                 currentPower: original.maxPower,
+                tempHp: 0,
                 effects: [...original.effects]
             };
 
@@ -636,10 +638,22 @@
 
         function updateHp(id, change) {
             const character = characters.find(char => char.id === id);
-            if (character) {
-                character.currentHp = Math.max(0, Math.min(character.maxHp, character.currentHp + change));
-                renderCharacters();
+            if (!character) return;
+
+            if (change < 0) {
+                let damage = -change;
+                if (character.tempHp > 0) {
+                    const tempDamage = Math.min(character.tempHp, damage);
+                    character.tempHp -= tempDamage;
+                    damage -= tempDamage;
+                }
+                if (damage > 0) {
+                    character.currentHp = Math.max(0, character.currentHp - damage);
+                }
+            } else if (change > 0) {
+                character.currentHp = Math.min(character.maxHp, character.currentHp + change);
             }
+            renderCharacters();
         }
 
         function applyCustomDamage(id) {
@@ -657,6 +671,36 @@
             if (healing > 0) {
                 updateHp(id, healing);
                 input.value = '';
+            }
+        }
+
+        function setTempHp(id) {
+            const input = document.querySelector(`[data-temp-id="${id}"]`);
+            const tempHp = parseInt(input.value) || 0;
+            const character = characters.find(char => char.id === id);
+            if (character) {
+                character.tempHp = Math.max(0, tempHp);
+                input.value = '';
+                renderCharacters();
+            }
+        }
+
+        function applyMaxHpChange(id) {
+            const input = document.querySelector(`[data-maxhp-id="${id}"]`);
+            const change = parseInt(input.value) || 0;
+            if (change === 0) return;
+            const character = characters.find(char => char.id === id);
+            if (!character) return;
+            character.maxHp += change;
+            if (character.currentHp > character.maxHp) {
+                character.currentHp = character.maxHp;
+            }
+            const effectName = `Max HP ${change >= 0 ? '+' : ''}${change}`;
+            character.effects.push(effectName);
+            input.value = '';
+            renderCharacters();
+            if (currentEffectCharacterId === id) {
+                renderEffects();
             }
         }
 
@@ -774,6 +818,7 @@
             // Reset pouze initiative a efekty, HP zůstává
             characters.forEach(char => {
                 char.initiative = null;
+                char.effects.forEach(effect => handleEffectRemoval(char, effect));
                 char.effects = [];
                 // Resetuj Moc pouze u monster
                 if (char.type === 'monster') {
@@ -800,6 +845,7 @@
             characters = characters.filter(char => {
                 if (char.type === 'player') {
                     char.initiative = null;
+                    char.effects.forEach(effect => handleEffectRemoval(char, effect));
                     char.effects = [];
                     // HP zůstává jak je
                     return true;
@@ -832,7 +878,7 @@
         function addEffect() {
             const effectSelect = document.getElementById('effectSelect');
             const customInput = document.getElementById('newEffect');
-            
+
             let effectName = '';
             if (effectSelect.value) {
                 effectName = effectSelect.value;
@@ -852,8 +898,20 @@
             }
         }
 
+        function handleEffectRemoval(character, effectName) {
+            const match = effectName.match(/^Max HP ([+-]?\d+)/);
+            if (match) {
+                const amount = parseInt(match[1]);
+                character.maxHp -= amount;
+                if (character.currentHp > character.maxHp) {
+                    character.currentHp = character.maxHp;
+                }
+            }
+        }
+
         function removeEffect(effectName) {
             const character = characters.find(char => char.id === currentEffectCharacterId);
+            handleEffectRemoval(character, effectName);
             character.effects = character.effects.filter(effect => effect !== effectName);
             renderEffects();
             renderCharacters();
@@ -862,6 +920,7 @@
         function removeEffectFromCharacter(id, effectName) {
             const character = characters.find(char => char.id === id);
             if (!character) return;
+            handleEffectRemoval(character, effectName);
             character.effects = character.effects.filter(effect => effect !== effectName);
             if (currentEffectCharacterId === id) {
                 renderEffects();
@@ -873,12 +932,21 @@
             if (predefinedEffects[effectName]) {
                 return predefinedEffects[effectName].type;
             }
+            const match = effectName.match(/^Max HP ([+-]?\d+)/);
+            if (match) {
+                return parseInt(match[1]) >= 0 ? 'buff' : 'debuff';
+            }
             return 'neutral'; // Vlastní efekty jsou neutrální
         }
 
         function getEffectDescription(effectName) {
             if (predefinedEffects[effectName]) {
                 return predefinedEffects[effectName].description;
+            }
+            const match = effectName.match(/^Max HP ([+-]?\d+)/);
+            if (match) {
+                const amount = parseInt(match[1]);
+                return `Maximální HP ${amount >= 0 ? 'zvýšeno' : 'sníženo'} o ${Math.abs(amount)}`;
             }
             return 'Vlastní efekt - bez popisu';
         }
@@ -955,6 +1023,10 @@
                                 <div class="stat-value">${char.currentHp}/${char.maxHp}</div>
                             </div>
                             <div class="stat-group">
+                                <div class="stat-label">Dočasné HP</div>
+                                <div class="stat-value">${char.tempHp}</div>
+                            </div>
+                            <div class="stat-group">
                                 <div class="stat-label">Iniciativa</div>
                                 <div class="stat-value">
                                     <input type="number" value="${char.initiative || ''}" onchange="setInitiative(${char.id}, this.value)" style="width: 60px; text-align: center;">
@@ -989,6 +1061,10 @@
                             <button onclick="applyCustomDamage(${char.id})" class="btn-danger control-btn">Aplikovat</button>
                             <input type="number" data-healing-id="${char.id}" class="custom-input" placeholder="Léčení">
                             <button onclick="applyCustomHealing(${char.id})" class="btn-success control-btn">Aplikovat</button>
+                            <input type="number" data-temp-id="${char.id}" class="custom-input" placeholder="Dočasné HP">
+                            <button onclick="setTempHp(${char.id})" class="btn-warning control-btn">Nastavit</button>
+                            <input type="number" data-maxhp-id="${char.id}" class="custom-input" placeholder="Změna max HP">
+                            <button onclick="applyMaxHpChange(${char.id})" class="btn-purple control-btn">Aplikovat</button>
                         </div>
 
                         ${char.type === 'monster' ? `
@@ -1010,6 +1086,7 @@
                     type: char.type,
                     maxHp: char.maxHp,
                     currentHp: char.currentHp,
+                    tempHp: char.tempHp,
                     initBonus: char.initBonus,
                     maxPower: char.maxPower,
                     currentPower: char.currentPower,
@@ -1041,6 +1118,7 @@
                             ...char,
                             id: Date.now() + Math.random(),
                             initiative: null,
+                            tempHp: char.tempHp || 0,
                             effects: char.effects || []
                         }));
                         
