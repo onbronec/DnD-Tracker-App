@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DnD Combat Tracker</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 5px solid #3498db;
+        }
+
+        .section h2 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+
+        .form-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        input, select, button {
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background 0.3s;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background: #2980b9;
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+
+        .btn-success {
+            background: #27ae60;
+        }
+
+        .btn-success:hover {
+            background: #219a52;
+        }
+
+        .btn-warning {
+            background: #f39c12;
+        }
+
+        .btn-warning:hover {
+            background: #e67e22;
+        }
+
+        .btn-purple {
+            background: #9b59b6;
+        }
+
+        .btn-purple:hover {
+            background: #8e44ad;
+        }
+
+        .character-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 15px;
+        }
+
+        .character-card {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            border: 2px solid #ecf0f1;
+        }
+
+        .character-card.active {
+            border-color: #f39c12;
+            background: #fff8e1;
+        }
+
+        .character-card.played {
+            opacity: 0.6;
+            background: #f5f5f5;
+        }
+
+        .character-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .character-name {
+            font-weight: bold;
+            font-size: 1.1em;
+            color: #2c3e50;
+            cursor: pointer;
+        }
+
+        .character-name:hover {
+            color: #3498db;
+        }
+
+        .character-type {
+            background: #ecf0f1;
+            padding: 3px 8px;
+            border-radius: 15px;
+            font-size: 0.8em;
+            color: #7f8c8d;
+        }
+
+        .character-stats {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .stat-group {
+            text-align: center;
+            flex: 1;
+        }
+
+        .stat-label {
+            font-size: 0.8em;
+            color: #7f8c8d;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            font-weight: bold;
+            font-size: 1.2em;
+            color: #2c3e50;
+        }
+
+        .controls {
+            display: flex;
+            gap: 5px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 5px;
+        }
+
+        .control-btn {
+            padding: 5px 10px;
+            font-size: 0.8em;
+        }
+
+        .file-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .combat-controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .initiative-order {
+            font-size: 1.1em;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #e8f4fd;
+            border-radius: 10px;
+            border-left: 5px solid #3498db;
+        }
+
+        .turn-info {
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .hp-bar {
+            width: 100%;
+            height: 8px;
+            background: #ecf0f1;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .hp-fill {
+            height: 100%;
+            background: #27ae60;
+            transition: width 0.3s, background-color 0.3s;
+        }
+
+        .hp-fill.low {
+            background: #e74c3c;
+        }
+
+        .hp-fill.medium {
+            background: #f39c12;
+        }
+
+        .effects {
+            margin: 10px 0;
+            min-height: 25px;
+        }
+
+        .effect-tag {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.7em;
+            margin: 2px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .effect-tag.buff {
+            background: #27ae60;
+            color: white;
+        }
+
+        .effect-tag.debuff {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .effect-tag.neutral {
+            background: #3498db;
+            color: white;
+        }
+
+        .effect-tag:hover {
+            transform: scale(1.05);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+
+        .effect-controls {
+            margin: 15px 0;
+        }
+
+        .effect-select {
+            width: 150px;
+            font-size: 0.9em;
+            padding: 5px;
+            margin-right: 10px;
+        }
+
+        .effect-input {
+            width: 120px;
+            font-size: 0.8em;
+            padding: 5px;
+            margin-right: 10px;
+        }
+
+        .effect-description {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-size: 0.85em;
+            line-height: 1.4;
+            border-left: 3px solid #3498db;
+        }
+
+        .effect-list-container {
+            max-height: 200px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+
+        .effect-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px;
+            margin: 2px 0;
+            background: white;
+            border-radius: 3px;
+            border: 1px solid #ddd;
+        }
+
+        .effect-item:hover {
+            background: #f8f9fa;
+        }
+
+        .custom-hp-controls {
+            display: flex;
+            gap: 5px;
+            justify-content: center;
+            align-items: center;
+            margin-top: 5px;
+        }
+
+        .custom-input {
+            width: 60px;
+            font-size: 0.8em;
+            padding: 3px 6px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border-radius: 10px;
+            width: 80%;
+            max-width: 500px;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: black;
+        }
+
+        .power-controls {
+            display: flex;
+            gap: 5px;
+            justify-content: center;
+            align-items: center;
+            margin-top: 5px;
+        }
+
+        .power-input {
+            width: 40px;
+            font-size: 0.8em;
+            padding: 3px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🐉 DnD Combat Tracker</h1>
+
+        <div class="section">
+            <h2>📁 Správa dat</h2>
+            <div class="file-controls">
+                <button onclick="saveData()">💾 Uložit data</button>
+                <button onclick="document.getElementById('fileInput').click()">📂 Načíst data (kumulativně)</button>
+                <input type="file" id="fileInput" accept=".json" onchange="loadData(event)">
+                <button onclick="clearAll()" class="btn-danger">🗑️ Vymazat vše</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>➕ Přidat postavu/monstrum</h2>
+            <div class="form-group">
+                <input type="text" id="name" placeholder="Jméno" required>
+                <select id="type">
+                    <option value="player">Hráč</option>
+                    <option value="monster">Monstrum</option>
+                </select>
+                <input type="number" id="maxHp" placeholder="Max HP" required>
+                <input type="number" id="currentHp" placeholder="Aktuální HP">
+                <input type="number" id="initBonus" placeholder="Bonus na iniciativu">
+                <input type="number" id="maxPower" placeholder="Max Moc">
+                <input type="number" id="currentPower" placeholder="Aktuální Moc">
+                <button onclick="addCharacter()">Přidat</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>⚔️ Boj</h2>
+            <div class="combat-controls">
+                <button onclick="startCombat()" class="btn-success" id="startBtn">🎲 Zahájit boj</button>
+                <button onclick="nextTurn()" class="btn-warning hidden" id="nextBtn">➡️ Další tah</button>
+                <button onclick="endCombat()" class="btn-danger hidden" id="endBtn">🏁 Ukončit boj</button>
+                <button onclick="closeCombat()" class="btn-purple hidden" id="closeBtn">🔒 Uzavřít boj</button>
+            </div>
+            <div id="initiativeOrder" class="initiative-order hidden"></div>
+        </div>
+
+        <div class="section">
+            <h2>👥 Postavy a monstra</h2>
+            <div id="characterList" class="character-list"></div>
+        </div>
+    </div>
+
+    <!-- Modal pro efekty -->
+    <div id="effectModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeEffectModal()">&times;</span>
+            <h3>🎭 Efekty pro <span id="effectCharacterName"></span></h3>
+            <div id="effectList"></div>
+            <div class="effect-controls">
+                <h4>Přidat efekt:</h4>
+                <div style="margin: 10px 0;">
+                    <select id="effectSelect" class="effect-select">
+                        <option value="">-- Vyberte efekt --</option>
+                        <optgroup label="🔴 Debuffs">
+                            <option value="Blinded">Blinded (Oslepený)</option>
+                            <option value="Charmed">Charmed (Okouzlený)</option>
+                            <option value="Deafened">Deafened (Ohlušený)</option>
+                            <option value="Frightened">Frightened (Vystrašený)</option>
+                            <option value="Grappled">Grappled (Uchvácený)</option>
+                            <option value="Incapacitated">Incapacitated (Neschopný)</option>
+                            <option value="Paralyzed">Paralyzed (Paralyzovaný)</option>
+                            <option value="Petrified">Petrified (Zkamenělý)</option>
+                            <option value="Poisoned">Poisoned (Otrávený)</option>
+                            <option value="Prone">Prone (Ležící)</option>
+                            <option value="Restrained">Restrained (Spoutaný)</option>
+                            <option value="Stunned">Stunned (Omráčený)</option>
+                            <option value="Unconscious">Unconscious (Bezvědomý)</option>
+                        </optgroup>
+                        <optgroup label="🟢 Buffs">
+                            <option value="Blessed">Blessed (Požehnaný)</option>
+                            <option value="Hasted">Hasted (Zrychlený)</option>
+                            <option value="Inspired">Inspired (Inspirovaný)</option>
+                            <option value="Protected">Protected (Chráněný)</option>
+                            <option value="Enlarged">Enlarged (Zvětšený)</option>
+                            <option value="Flying">Flying (Létající)</option>
+                            <option value="Invisible">Invisible (Neviditelný)</option>
+                            <option value="Resistance">Resistance (Odolnost)</option>
+                            <option value="Advantage">Advantage (Výhoda)</option>
+                            <option value="Raging">Raging (Běsnící)</option>
+                            <option value="Dodging">Dodging (Vyhýbající se)</option>
+                        </optgroup>
+                        <optgroup label="🔵 Neutrální">
+                            <option value="Concentrating">Concentrating (Soustředění)</option>
+                            <option value="Marked">Marked (Označený)</option>
+                        </optgroup>
+                    </select>
+                    <button onclick="addEffect()" class="btn-success">Přidat vybraný</button>
+                </div>
+                <div style="margin: 10px 0;">
+                    <input type="text" id="newEffect" class="effect-input" placeholder="Vlastní efekt">
+                    <button onclick="addEffect()" class="btn-success">Přidat vlastní</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let characters = [];
+        let combatState = {
+            active: false,
+            currentTurn: 0,
+            round: 1,
+            playedThisRound: []
+        };
+        let currentEffectCharacterId = null;
+        
+        // Předdefinované D&D 5e kondice/efekty
+        const predefinedEffects = {
+            // Debuffs
+            'Blinded': { type: 'debuff', description: 'Postava nevidí a automaticky neuspěje u kontrol založených na zraku. Útoky proti postavě mají výhodu, útoky postavy mají nevýhodu.' },
+            'Charmed': { type: 'debuff', description: 'Postava nemůže útočit na toho, kdo ji okouzlil. Ten má výhodu na sociální interakce.' },
+            'Deafened': { type: 'debuff', description: 'Postava neslyší a automaticky neuspěje u kontrol založených na sluchu.' },
+            'Frightened': { type: 'debuff', description: 'Postava má nevýhodu na ability checks a útoky, dokud je zdroj strachu ve výhledu. Nemůže se dobrovolně přiblížit ke zdroji.' },
+            'Grappled': { type: 'debuff', description: 'Rychlost postavy je 0. Končí, když je grappler neschopný nebo postava unikne.' },
+            'Incapacitated': { type: 'debuff', description: 'Postava nemůže provádět akce ani reakce.' },
+            'Invisible': { type: 'buff', description: 'Postava je neviditelná. Útoky proti ní mají nevýhodu, její útoky mají výhodu.' },
+            'Paralyzed': { type: 'debuff', description: 'Postava je neschopná a nemůže se hýbat ani mluvit. Automaticky neuspěje u Str a Dex záchran. Útoky proti ní mají výhodu.' },
+            'Petrified': { type: 'debuff', description: 'Postava je zkamenělá, neschopná a neuvědomělá. Má odolnost proti všem typům poškození.' },
+            'Poisoned': { type: 'debuff', description: 'Postava má nevýhodu na útoky a ability checks.' },
+            'Prone': { type: 'debuff', description: 'Pohyb pouze plazením. Nevýhoda na útoky. Útoky zblízka mají výhodu, na dálku nevýhodu.' },
+            'Restrained': { type: 'debuff', description: 'Rychlost 0, nevýhoda na útoky a Dex záchranné hody. Útoky proti postavě mají výhodu.' },
+            'Stunned': { type: 'debuff', description: 'Postava je neschopná, nemůže se hýbat a mluví jen nejasně. Automaticky neuspěje u Str a Dex záchran.' },
+            'Unconscious': { type: 'debuff', description: 'Postava je neschopná, nemůže se hýbat ani mluvit, neuvědomělá. Automaticky neuspěje u Str a Dex záchran.' },
+            
+            // Buffs
+            'Blessed': { type: 'buff', description: 'Bonus k záchranným hodům a útokům.' },
+            'Hasted': { type: 'buff', description: 'Dvojnásobná rychlost, +2 AC, výhoda na Dex záchranné hody, extra akce.' },
+            'Inspired': { type: 'buff', description: 'Bardic Inspiration - bonus k příštímu hodu.' },
+            'Protected': { type: 'buff', description: 'Magická ochrana poskytující bonus k AC nebo záchranným hodům.' },
+            'Enlarged': { type: 'buff', description: 'Zvětšená velikost, výhoda na Strength checks a záchranné hody, extra poškození.' },
+            'Flying': { type: 'buff', description: 'Schopnost letu díky kouzlu nebo schopnosti.' },
+            'Resistance': { type: 'buff', description: 'Odolnost proti určitému typu poškození.' },
+            'Advantage': { type: 'buff', description: 'Výhoda na určitý typ hodů.' },
+            
+            // Neutrální/Situační
+            'Concentrating': { type: 'neutral', description: 'Postava se soustředí na kouzlo. Při poškození hází záchranný hod na koncentraci.' },
+            'Marked': { type: 'neutral', description: 'Postava je označená pro sledování nebo speciální efekt.' },
+            'Raging': { type: 'buff', description: 'Barbarian Rage - bonus k poškození, odolnost proti fyzickému poškození.' },
+            'Dodging': { type: 'buff', description: 'Postava se vyhýbá - útoky proti ní mají nevýhodu.' }
+        };
+
+        function addCharacter() {
+            const name = document.getElementById('name').value.trim();
+            const type = document.getElementById('type').value;
+            const maxHp = parseInt(document.getElementById('maxHp').value);
+            const currentHp = parseInt(document.getElementById('currentHp').value) || maxHp;
+            const initBonus = parseInt(document.getElementById('initBonus').value) || 0;
+            const maxPower = parseInt(document.getElementById('maxPower').value) || 0;
+            const currentPower = parseInt(document.getElementById('currentPower').value) || maxPower;
+
+            if (!name || !maxHp) {
+                alert('Vyplňte prosím jméno a maximální HP!');
+                return;
+            }
+
+            const character = {
+                id: Date.now() + Math.random(),
+                name,
+                type,
+                maxHp,
+                currentHp,
+                initBonus,
+                initiative: null,
+                maxPower,
+                currentPower,
+                effects: []
+            };
+
+            characters.push(character);
+            
+            // Vymazání formuláře
+            document.getElementById('name').value = '';
+            document.getElementById('maxHp').value = '';
+            document.getElementById('currentHp').value = '';
+            document.getElementById('initBonus').value = '';
+            document.getElementById('maxPower').value = '';
+            document.getElementById('currentPower').value = '';
+            
+            renderCharacters();
+        }
+
+        function duplicateMonster(id) {
+            const original = characters.find(char => char.id === id);
+            if (!original || original.type !== 'monster') return;
+
+            // Najdi všechny monstra se stejným základním jménem
+            const baseName = original.name.replace(/^\d+\.\s*/, ''); // Odstraň číslo z začátku
+            const similarMonsters = characters.filter(char => 
+                char.type === 'monster' && 
+                (char.name === baseName || char.name.includes(baseName))
+            );
+
+            // Přečísluj všechna podobná monstra
+            similarMonsters.forEach((monster, index) => {
+                monster.name = `${index + 1}. ${baseName}`;
+            });
+
+            // Vytvoř kopii
+            const newMonster = {
+                ...original,
+                id: Date.now() + Math.random(),
+                name: `${similarMonsters.length + 1}. ${baseName}`,
+                initiative: null,
+                currentHp: original.maxHp,
+                currentPower: original.maxPower,
+                effects: [...original.effects]
+            };
+
+            characters.push(newMonster);
+            renderCharacters();
+        }
+
+        function removeCharacter(id) {
+            characters = characters.filter(char => char.id !== id);
+            renderCharacters();
+        }
+
+        function updateHp(id, change) {
+            const character = characters.find(char => char.id === id);
+            if (character) {
+                character.currentHp = Math.max(0, Math.min(character.maxHp, character.currentHp + change));
+                renderCharacters();
+            }
+        }
+
+        function applyCustomDamage(id) {
+            const input = document.querySelector(`[data-damage-id="${id}"]`);
+            const damage = parseInt(input.value) || 0;
+            if (damage > 0) {
+                updateHp(id, -damage);
+                input.value = '';
+            }
+        }
+
+        function applyCustomHealing(id) {
+            const input = document.querySelector(`[data-healing-id="${id}"]`);
+            const healing = parseInt(input.value) || 0;
+            if (healing > 0) {
+                updateHp(id, healing);
+                input.value = '';
+            }
+        }
+
+        function updatePower(id, change) {
+            const character = characters.find(char => char.id === id);
+            if (character) {
+                character.currentPower = Math.max(0, character.currentPower + change);
+                renderCharacters();
+            }
+        }
+
+        function setPower(id, value) {
+            const character = characters.find(char => char.id === id);
+            if (character) {
+                character.currentPower = Math.max(0, parseInt(value) || 0);
+                renderCharacters();
+            }
+        }
+
+        function setInitiative(id, value) {
+            const character = characters.find(char => char.id === id);
+            if (character) {
+                const oldInitiative = character.initiative;
+                character.initiative = parseInt(value) || null;
+                
+                // Pokud probíhá boj, přeorganizuj pořadí
+                if (combatState.active && character.initiative !== null) {
+                    // Seřaď znovu podle iniciativy
+                    const currentCharIndex = combatState.currentTurn;
+                    const currentCharId = characters[currentCharIndex].id;
+                    
+                    characters.sort((a, b) => b.initiative - a.initiative);
+                    
+                    // Najdi novou pozici aktuální postavy
+                    const newCurrentIndex = characters.findIndex(char => char.id === currentCharId);
+                    
+                    // Najdi novou pozici upravené postavy
+                    const updatedCharIndex = characters.findIndex(char => char.id === id);
+                    
+                    // Pokud se upravená postava dostala před aktuální postavu, označit ji jako hranou
+                    if (updatedCharIndex < newCurrentIndex && !combatState.playedThisRound.includes(updatedCharIndex)) {
+                        combatState.playedThisRound.push(updatedCharIndex);
+                    }
+                    
+                    // Aktualizuj současný tah
+                    combatState.currentTurn = newCurrentIndex;
+                    
+                    // Přepočítej kdo už hrál v tomto kole
+                    combatState.playedThisRound = combatState.playedThisRound
+                        .map(oldIndex => {
+                            // Najdi postavu podle původního indexu a vrať její nový index
+                            const charAtOldIndex = characters.find((char, idx) => idx === oldIndex);
+                            return charAtOldIndex ? characters.findIndex(c => c.id === charAtOldIndex.id) : -1;
+                        })
+                        .filter(idx => idx !== -1 && idx < newCurrentIndex);
+                    
+                    updateInitiativeDisplay();
+                }
+                
+                renderCharacters();
+            }
+        }
+
+        function rollInitiative(character) {
+            const roll = Math.floor(Math.random() * 20) + 1;
+            return roll + character.initBonus;
+        }
+
+        function startCombat() {
+            // Hoď iniciativou pro všechny bez iniciativy
+            characters.forEach(char => {
+                if (char.initiative === null) {
+                    char.initiative = rollInitiative(char);
+                }
+            });
+
+            // Seřaď podle iniciativy
+            characters.sort((a, b) => b.initiative - a.initiative);
+
+            combatState.active = true;
+            combatState.currentTurn = 0;
+            combatState.round = 1;
+            combatState.playedThisRound = [];
+
+            document.getElementById('startBtn').classList.add('hidden');
+            document.getElementById('nextBtn').classList.remove('hidden');
+            document.getElementById('endBtn').classList.remove('hidden');
+            document.getElementById('closeBtn').classList.remove('hidden');
+
+            updateInitiativeDisplay();
+            renderCharacters();
+        }
+
+        function nextTurn() {
+            if (combatState.currentTurn < characters.length - 1) {
+                combatState.playedThisRound.push(combatState.currentTurn);
+                combatState.currentTurn++;
+            } else {
+                // Nové kolo
+                combatState.round++;
+                combatState.currentTurn = 0;
+                combatState.playedThisRound = [];
+            }
+
+            updateInitiativeDisplay();
+            renderCharacters();
+        }
+
+        function endCombat() {
+            combatState.active = false;
+            combatState.currentTurn = 0;
+            combatState.round = 1;
+            combatState.playedThisRound = [];
+
+            // Reset pouze initiative a efekty, HP zůstává
+            characters.forEach(char => {
+                char.initiative = null;
+                char.effects = [];
+                // Resetuj Moc pouze u monster
+                if (char.type === 'monster') {
+                    char.currentPower = char.maxPower;
+                }
+            });
+
+            document.getElementById('startBtn').classList.remove('hidden');
+            document.getElementById('nextBtn').classList.add('hidden');
+            document.getElementById('endBtn').classList.add('hidden');
+            document.getElementById('closeBtn').classList.add('hidden');
+            document.getElementById('initiativeOrder').classList.add('hidden');
+
+            renderCharacters();
+        }
+
+        function closeCombat() {
+            combatState.active = false;
+            combatState.currentTurn = 0;
+            combatState.round = 1;
+            combatState.playedThisRound = [];
+
+            // Odstraň všechna monstra a reset pouze iniciativy a efektů u hráčů
+            characters = characters.filter(char => {
+                if (char.type === 'player') {
+                    char.initiative = null;
+                    char.effects = [];
+                    // HP zůstává jak je
+                    return true;
+                }
+                return false;
+            });
+
+            document.getElementById('startBtn').classList.remove('hidden');
+            document.getElementById('nextBtn').classList.add('hidden');
+            document.getElementById('endBtn').classList.add('hidden');
+            document.getElementById('closeBtn').classList.add('hidden');
+            document.getElementById('initiativeOrder').classList.add('hidden');
+
+            renderCharacters();
+        }
+
+        function openEffectModal(id) {
+            currentEffectCharacterId = id;
+            const character = characters.find(char => char.id === id);
+            document.getElementById('effectCharacterName').textContent = character.name;
+            renderEffects();
+            document.getElementById('effectModal').style.display = 'block';
+        }
+
+        function closeEffectModal() {
+            document.getElementById('effectModal').style.display = 'none';
+            currentEffectCharacterId = null;
+        }
+
+        function addEffect() {
+            const effectSelect = document.getElementById('effectSelect');
+            const customInput = document.getElementById('newEffect');
+            
+            let effectName = '';
+            if (effectSelect.value) {
+                effectName = effectSelect.value;
+                effectSelect.value = '';
+            } else if (customInput.value.trim()) {
+                effectName = customInput.value.trim();
+                customInput.value = '';
+            }
+            
+            if (!effectName || !currentEffectCharacterId) return;
+
+            const character = characters.find(char => char.id === currentEffectCharacterId);
+            if (!character.effects.includes(effectName)) {
+                character.effects.push(effectName);
+                renderEffects();
+                renderCharacters();
+            }
+        }
+
+        function removeEffect(effectName) {
+            const character = characters.find(char => char.id === currentEffectCharacterId);
+            character.effects = character.effects.filter(effect => effect !== effectName);
+            renderEffects();
+            renderCharacters();
+        }
+
+        function getEffectClass(effectName) {
+            if (predefinedEffects[effectName]) {
+                return predefinedEffects[effectName].type;
+            }
+            return 'neutral'; // Vlastní efekty jsou neutrální
+        }
+
+        function getEffectDescription(effectName) {
+            if (predefinedEffects[effectName]) {
+                return predefinedEffects[effectName].description;
+            }
+            return 'Vlastní efekt - bez popisu';
+        }
+
+        function renderEffects() {
+            const character = characters.find(char => char.id === currentEffectCharacterId);
+            const effectList = document.getElementById('effectList');
+            
+            if (character.effects.length === 0) {
+                effectList.innerHTML = '<p style="color: #7f8c8d; font-style: italic;">Žádné aktivní efekty</p>';
+                return;
+            }
+            
+            effectList.innerHTML = `
+                <div class="effect-list-container">
+                    ${character.effects.map(effect => `
+                        <div class="effect-item">
+                            <div>
+                                <span class="effect-tag ${getEffectClass(effect)}">${effect}</span>
+                                <div class="effect-description">${getEffectDescription(effect)}</div>
+                            </div>
+                            <button onclick="removeEffect('${effect}')" class="btn-danger control-btn">✕</button>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function updateInitiativeDisplay() {
+            const orderDiv = document.getElementById('initiativeOrder');
+            if (combatState.active && characters.length > 0) {
+                const currentChar = characters[combatState.currentTurn];
+                orderDiv.innerHTML = `
+                    <div class="turn-info">Kolo ${combatState.round} - Na tahu: ${currentChar.name} (Iniciativa: ${currentChar.initiative})</div>
+                    <div>Pořadí iniciativy: ${characters.map((char, index) => 
+                        `<span style="color: ${index === combatState.currentTurn ? '#f39c12' : 
+                        combatState.playedThisRound.includes(index) ? '#7f8c8d' : '#2c3e50'}">${char.name} (${char.initiative})</span>`
+                    ).join(' → ')}</div>
+                `;
+                orderDiv.classList.remove('hidden');
+            } else {
+                orderDiv.classList.add('hidden');
+            }
+        }
+
+        function getHpBarClass(currentHp, maxHp) {
+            const percentage = (currentHp / maxHp) * 100;
+            if (percentage <= 25) return 'low';
+            if (percentage <= 50) return 'medium';
+            return '';
+        }
+
+        function renderCharacters() {
+            const listDiv = document.getElementById('characterList');
+            listDiv.innerHTML = characters.map((char, index) => {
+                const isActive = combatState.active && index === combatState.currentTurn;
+                const hasPlayed = combatState.active && combatState.playedThisRound.includes(index);
+                const hpPercentage = (char.currentHp / char.maxHp) * 100;
+                
+                return `
+                    <div class="character-card ${isActive ? 'active' : ''} ${hasPlayed ? 'played' : ''}">
+                        <div class="character-header">
+                            <span class="character-name" onclick="openEffectModal(${char.id})">${char.name}</span>
+                            <span class="character-type">${char.type === 'player' ? 'Hráč' : 'Monstrum'}</span>
+                            <div>
+                                ${char.type === 'monster' ? `<button onclick="duplicateMonster(${char.id})" class="btn-success control-btn">➕</button>` : ''}
+                                <button onclick="removeCharacter(${char.id})" class="btn-danger control-btn">❌</button>
+                            </div>
+                        </div>
+                        
+                        <div class="character-stats">
+                            <div class="stat-group">
+                                <div class="stat-label">HP</div>
+                                <div class="stat-value">${char.currentHp}/${char.maxHp}</div>
+                            </div>
+                            <div class="stat-group">
+                                <div class="stat-label">Iniciativa</div>
+                                <div class="stat-value">
+                                    <input type="number" value="${char.initiative || ''}" onchange="setInitiative(${char.id}, this.value)" style="width: 60px; text-align: center;">
+                                </div>
+                            </div>
+                            ${char.type === 'monster' ? `
+                            <div class="stat-group">
+                                <div class="stat-label">Moc</div>
+                                <div class="stat-value">${char.currentPower}/${char.maxPower}</div>
+                            </div>
+                            ` : ''}
+                        </div>
+
+                        <div class="hp-bar">
+                            <div class="hp-fill ${getHpBarClass(char.currentHp, char.maxHp)}" style="width: ${hpPercentage}%"></div>
+                        </div>
+
+                        <div class="effects">
+                            ${char.effects.map(effect => `<span class="effect-tag ${getEffectClass(effect)}" title="${getEffectDescription(effect)}">${effect}</span>`).join('')}
+                        </div>
+                        
+                        <div class="controls">
+                            <button onclick="updateHp(${char.id}, -1)" class="btn-danger control-btn">HP -1</button>
+                            <button onclick="updateHp(${char.id}, -10)" class="btn-danger control-btn">HP -10</button>
+                            <button onclick="updateHp(${char.id}, 1)" class="btn-success control-btn">HP +1</button>
+                            <button onclick="updateHp(${char.id}, 10)" class="btn-success control-btn">HP +10</button>
+                        </div>
+                        
+                        <div class="custom-hp-controls">
+                            <input type="number" data-damage-id="${char.id}" class="custom-input" placeholder="Poškození">
+                            <button onclick="applyCustomDamage(${char.id})" class="btn-danger control-btn">Aplikovat</button>
+                            <input type="number" data-healing-id="${char.id}" class="custom-input" placeholder="Léčení">
+                            <button onclick="applyCustomHealing(${char.id})" class="btn-success control-btn">Aplikovat</button>
+                        </div>
+
+                        ${char.type === 'monster' ? `
+                        <div class="power-controls">
+                            <button onclick="updatePower(${char.id}, -1)" class="btn-danger control-btn">Moc -1</button>
+                            <input type="number" value="${char.currentPower}" onchange="setPower(${char.id}, this.value)" class="power-input">
+                            <button onclick="updatePower(${char.id}, 1)" class="btn-success control-btn">Moc +1</button>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function saveData() {
+            const data = {
+                characters: characters.map(char => ({
+                    name: char.name,
+                    type: char.type,
+                    maxHp: char.maxHp,
+                    currentHp: char.currentHp,
+                    initBonus: char.initBonus,
+                    maxPower: char.maxPower,
+                    currentPower: char.currentPower,
+                    effects: char.effects
+                })),
+                timestamp: new Date().toISOString()
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `dnd-tracker-${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function loadData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (data.characters && Array.isArray(data.characters)) {
+                        // Kumulativní načítání - přidej nové postavy k existujícím
+                        const newCharacters = data.characters.map(char => ({
+                            ...char,
+                            id: Date.now() + Math.random(),
+                            initiative: null,
+                            effects: char.effects || []
+                        }));
+                        
+                        characters = characters.concat(newCharacters);
+                        renderCharacters();
+                        alert(`Úspěšně načteno ${newCharacters.length} postav!`);
+                    } else {
+                        alert('Neplatný formát souboru!');
+                    }
+                } catch (error) {
+                    alert('Chyba při načítání souboru!');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function clearAll() {
+            if (confirm('Opravdu chcete vymazat všechna data?')) {
+                characters = [];
+                endCombat();
+                renderCharacters();
+            }
+        }
+
+        // Zavření modalu při kliknutí mimo něj
+        window.onclick = function(event) {
+            const modal = document.getElementById('effectModal');
+            if (event.target === modal) {
+                closeEffectModal();
+            }
+        }
+
+        // Inicializace
+        renderCharacters();
+    </script>
+</body>
+</html>
