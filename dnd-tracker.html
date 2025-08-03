@@ -187,6 +187,12 @@
             color: #2c3e50;
         }
 
+        .init-bonus {
+            font-size: 0.8em;
+            color: #7f8c8d;
+            margin-left: 5px;
+        }
+
         .controls {
             display: flex;
             gap: 5px;
@@ -853,6 +859,16 @@
             renderCharacters();
         }
 
+        function removeEffectFromCharacter(id, effectName) {
+            const character = characters.find(char => char.id === id);
+            if (!character) return;
+            character.effects = character.effects.filter(effect => effect !== effectName);
+            if (currentEffectCharacterId === id) {
+                renderEffects();
+            }
+            renderCharacters();
+        }
+
         function getEffectClass(effectName) {
             if (predefinedEffects[effectName]) {
                 return predefinedEffects[effectName].type;
@@ -881,7 +897,7 @@
                     ${character.effects.map(effect => `
                         <div class="effect-item">
                             <div>
-                                <span class="effect-tag ${getEffectClass(effect)}">${effect}</span>
+                                <span class="effect-tag ${getEffectClass(effect)}" title="${getEffectDescription(effect)}" onclick="removeEffectFromCharacter(currentEffectCharacterId, '${effect}')">${effect}</span>
                                 <div class="effect-description">${getEffectDescription(effect)}</div>
                             </div>
                             <button onclick="removeEffect('${effect}')" class="btn-danger control-btn">✕</button>
@@ -942,6 +958,7 @@
                                 <div class="stat-label">Iniciativa</div>
                                 <div class="stat-value">
                                     <input type="number" value="${char.initiative || ''}" onchange="setInitiative(${char.id}, this.value)" style="width: 60px; text-align: center;">
+                                    <span class="init-bonus">(${char.initBonus >= 0 ? '+' : ''}${char.initBonus})</span>
                                 </div>
                             </div>
                             ${char.type === 'monster' ? `
@@ -957,7 +974,7 @@
                         </div>
 
                         <div class="effects">
-                            ${char.effects.map(effect => `<span class="effect-tag ${getEffectClass(effect)}" title="${getEffectDescription(effect)}">${effect}</span>`).join('')}
+                            ${char.effects.map(effect => `<span class="effect-tag ${getEffectClass(effect)}" title="${getEffectDescription(effect)}" onclick="removeEffectFromCharacter(${char.id}, '${effect}')">${effect}</span>`).join('')}
                         </div>
                         
                         <div class="controls">
