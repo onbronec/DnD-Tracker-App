@@ -152,10 +152,12 @@ Aplikace ukládá data ve formátu JSON:
 - Všechna monstra se stejným jménem se automaticky přečíslují
 - Ideální pro skupiny goblinů, orků atd.
 
-### ⚔️ Pokročilé HP managementy  
+### ⚔️ Pokročilé HP managementy
 - Tlačítka pro +/-1 a +/-10 HP
 - Vlastní pole pro zadání konkrétního poškození
 - Vlastní pole pro zadání konkrétního léčení
+- Pole pro zadání dočasných HP (odebírají se jako první při poškození)
+- Pole pro dočasnou změnu maximálních HP včetně automatického buffu/debuffu
 
 ### 🔒 Uzavření boje
 - Nové tlačítko "Uzavřít boj" odstraní všechna monstra
