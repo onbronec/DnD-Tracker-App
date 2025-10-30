@@ -13,8 +13,40 @@ Jednoduchá aplikace pro sledování hit pointů, iniciativy a "Moci" během D&D
 
 ## 📋 Funkce aplikace
 
+### ✨ Nové funkce
+
+#### 💾 Automatické ukládání
+- **LocalStorage auto-save**: Data se automaticky ukládají každých 30 sekund a při zavření stránky
+- Žádná ztráta postupu při nečekaném zavření prohlížeče
+- Aplikace automaticky obnoví stav při opětovném otevření
+
+#### ↩️ Historie a vrácení změn
+- **Undo systém**: Vraťte se zpět až 20 akcí pomocí Backspace klávesy
+- Historie sleduje všechny změny HP, efektů, iniciativy a tahů
+- Perfektní pro opravu chyb při zadávání
+
+#### ⌨️ Klávesové zkratky
+- **Space nebo PageUp**: Další tah (během boje)
+- **PageDown**: Předchozí tah (během boje)
+- **Backspace**: Vrátit poslední akci (undo)
+
+#### 🔄 Pokročilá kontrola tahů
+- **Předchozí tah**: Tlačítko a zkratka pro návrat o tah zpět
+- Automatická aktualizace stavu kola a hráčů
+
+#### 🎯 Drag & Drop iniciativy
+- Přesouvejte karty postav myší pro změnu pořadí iniciativy během boje
+- Automatická aktualizace pořadí a aktuální postavy na tahu
+
+#### 🛡️ AC (Armor Class)
+- Sledování AC u všech postav a monster
+- Zobrazení v statistikách karty
+
+### 🎲 Základní funkce
+
  (výchozí 0)
 - **Max Moc**: Maximální počet bodů "Moci" (výchozí 0)
+- **AC**: Armor Class (výchozí 10)
 
 ### 💾 Správa dat
 - **Uložit data**: Stáhne JSON soubor s aktuálními postavami včetně současných HP a efektů

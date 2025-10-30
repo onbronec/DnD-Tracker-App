@@ -138,6 +138,15 @@
             background: #f5f5f5;
         }
 
+        .character-card.dragging {
+            opacity: 0.5;
+            cursor: move;
+        }
+
+        .character-card.drag-over {
+            border-top: 3px solid #3498db;
+        }
+
         .character-header {
             display: flex;
             justify-content: space-between;
@@ -435,6 +444,7 @@
                 </select>
                 <input type="number" id="maxHp" placeholder="Max HP" required>
                 <input type="number" id="currentHp" placeholder="Aktuální HP">
+                <input type="number" id="ac" placeholder="AC (Armor Class)">
                 <input type="number" id="initBonus" placeholder="Bonus na iniciativu">
                 <input type="number" id="maxPower" placeholder="Max Moc">
                 <input type="number" id="currentPower" placeholder="Aktuální Moc">
@@ -446,6 +456,7 @@
             <h2>⚔️ Boj</h2>
             <div class="combat-controls">
                 <button onclick="startCombat()" class="btn-success" id="startBtn">🎲 Zahájit boj</button>
+                <button onclick="previousTurn()" class="btn-warning hidden" id="prevBtn">⬅️ Předchozí tah</button>
                 <button onclick="nextTurn()" class="btn-warning hidden" id="nextBtn">➡️ Další tah</button>
                 <button onclick="endCombat()" class="btn-danger hidden" id="endBtn">🏁 Ukončit boj</button>
                 <button onclick="closeCombat()" class="btn-purple hidden" id="closeBtn">🔒 Uzavřít boj</button>
@@ -522,6 +533,10 @@
             playedThisRound: []
         };
         let currentEffectCharacterId = null;
+        let autoSaveInterval = null;
+        let historyStack = [];
+        const MAX_HISTORY = 20;
+        let draggedCharacterIndex = null;
         
         // Předdefinované D&D 5e kondice/efekty
         const predefinedEffects = {
@@ -563,6 +578,7 @@
             const type = document.getElementById('type').value;
             const maxHp = parseInt(document.getElementById('maxHp').value);
             const currentHp = parseInt(document.getElementById('currentHp').value) || maxHp;
+            const ac = parseInt(document.getElementById('ac').value) || 10;
             const initBonus = parseInt(document.getElementById('initBonus').value) || 0;
             const maxPower = parseInt(document.getElementById('maxPower').value) || 0;
             const currentPower = parseInt(document.getElementById('currentPower').value) || maxPower;
@@ -579,6 +595,7 @@
                 maxHp,
                 currentHp,
                 tempHp: 0,
+                ac,
                 initBonus,
                 initiative: null,
                 maxPower,
@@ -587,15 +604,16 @@
             };
 
             characters.push(character);
-            
+
             // Vymazání formuláře
             document.getElementById('name').value = '';
             document.getElementById('maxHp').value = '';
             document.getElementById('currentHp').value = '';
+            document.getElementById('ac').value = '';
             document.getElementById('initBonus').value = '';
             document.getElementById('maxPower').value = '';
             document.getElementById('currentPower').value = '';
-            
+
             renderCharacters();
         }
 
@@ -632,11 +650,13 @@
         }
 
         function removeCharacter(id) {
+            saveState();
             characters = characters.filter(char => char.id !== id);
             renderCharacters();
         }
 
         function updateHp(id, change) {
+            saveState();
             const character = characters.find(char => char.id === id);
             if (!character) return;
 
@@ -675,6 +695,7 @@
         }
 
         function setTempHp(id) {
+            saveState();
             const input = document.querySelector(`[data-temp-id="${id}"]`);
             const tempHp = parseInt(input.value) || 0;
             const character = characters.find(char => char.id === id);
@@ -686,6 +707,7 @@
         }
 
         function applyMaxHpChange(id) {
+            saveState();
             const input = document.querySelector(`[data-maxhp-id="${id}"]`);
             const change = parseInt(input.value) || 0;
             if (change === 0) return;
@@ -705,6 +727,7 @@
         }
 
         function updatePower(id, change) {
+            saveState();
             const character = characters.find(char => char.id === id);
             if (character) {
                 character.currentPower = Math.max(0, character.currentPower + change);
@@ -713,6 +736,7 @@
         }
 
         function setPower(id, value) {
+            saveState();
             const character = characters.find(char => char.id === id);
             if (character) {
                 character.currentPower = Math.max(0, parseInt(value) || 0);
@@ -721,6 +745,7 @@
         }
 
         function setInitiative(id, value) {
+            saveState();
             const character = characters.find(char => char.id === id);
             if (character) {
                 const oldInitiative = character.initiative;
@@ -786,6 +811,7 @@
             combatState.playedThisRound = [];
 
             document.getElementById('startBtn').classList.add('hidden');
+            document.getElementById('prevBtn').classList.remove('hidden');
             document.getElementById('nextBtn').classList.remove('hidden');
             document.getElementById('endBtn').classList.remove('hidden');
             document.getElementById('closeBtn').classList.remove('hidden');
@@ -795,6 +821,7 @@
         }
 
         function nextTurn() {
+            saveState();
             if (combatState.currentTurn < characters.length - 1) {
                 combatState.playedThisRound.push(combatState.currentTurn);
                 combatState.currentTurn++;
@@ -803,6 +830,26 @@
                 combatState.round++;
                 combatState.currentTurn = 0;
                 combatState.playedThisRound = [];
+            }
+
+            updateInitiativeDisplay();
+            renderCharacters();
+        }
+
+        function previousTurn() {
+            saveState();
+            if (combatState.currentTurn > 0) {
+                combatState.currentTurn--;
+                // Odstraň z playedThisRound pokud tam byl
+                combatState.playedThisRound = combatState.playedThisRound.filter(idx => idx !== combatState.currentTurn);
+            } else {
+                // Vrátit se na konec předchozího kola
+                if (combatState.round > 1) {
+                    combatState.round--;
+                    combatState.currentTurn = characters.length - 1;
+                    // V předchozím kole všichni hráli kromě posledního
+                    combatState.playedThisRound = Array.from({length: characters.length - 1}, (_, i) => i);
+                }
             }
 
             updateInitiativeDisplay();
@@ -827,6 +874,7 @@
             });
 
             document.getElementById('startBtn').classList.remove('hidden');
+            document.getElementById('prevBtn').classList.add('hidden');
             document.getElementById('nextBtn').classList.add('hidden');
             document.getElementById('endBtn').classList.add('hidden');
             document.getElementById('closeBtn').classList.add('hidden');
@@ -854,6 +902,7 @@
             });
 
             document.getElementById('startBtn').classList.remove('hidden');
+            document.getElementById('prevBtn').classList.add('hidden');
             document.getElementById('nextBtn').classList.add('hidden');
             document.getElementById('endBtn').classList.add('hidden');
             document.getElementById('closeBtn').classList.add('hidden');
@@ -876,6 +925,7 @@
         }
 
         function addEffect() {
+            saveState();
             const effectSelect = document.getElementById('effectSelect');
             const customInput = document.getElementById('newEffect');
 
@@ -887,7 +937,7 @@
                 effectName = customInput.value.trim();
                 customInput.value = '';
             }
-            
+
             if (!effectName || !currentEffectCharacterId) return;
 
             const character = characters.find(char => char.id === currentEffectCharacterId);
@@ -910,6 +960,7 @@
         }
 
         function removeEffect(effectName) {
+            saveState();
             const character = characters.find(char => char.id === currentEffectCharacterId);
             handleEffectRemoval(character, effectName);
             character.effects = character.effects.filter(effect => effect !== effectName);
@@ -918,6 +969,7 @@
         }
 
         function removeEffectFromCharacter(id, effectName) {
+            saveState();
             const character = characters.find(char => char.id === id);
             if (!character) return;
             handleEffectRemoval(character, effectName);
@@ -999,6 +1051,175 @@
             return '';
         }
 
+        // LocalStorage funkce pro auto-save
+        function saveToLocalStorage() {
+            try {
+                const data = {
+                    characters: characters.map(char => ({
+                        name: char.name,
+                        type: char.type,
+                        maxHp: char.maxHp,
+                        currentHp: char.currentHp,
+                        tempHp: char.tempHp,
+                        ac: char.ac,
+                        initBonus: char.initBonus,
+                        maxPower: char.maxPower,
+                        currentPower: char.currentPower,
+                        effects: char.effects,
+                        initiative: char.initiative
+                    })),
+                    combatState: combatState,
+                    timestamp: new Date().toISOString()
+                };
+                localStorage.setItem('dnd-tracker-data', JSON.stringify(data));
+            } catch (error) {
+                console.error('Error saving to localStorage:', error);
+            }
+        }
+
+        function loadFromLocalStorage() {
+            try {
+                const saved = localStorage.getItem('dnd-tracker-data');
+                if (saved) {
+                    const data = JSON.parse(saved);
+                    if (data.characters && Array.isArray(data.characters)) {
+                        characters = data.characters.map(char => ({
+                            ...char,
+                            id: Date.now() + Math.random(),
+                            tempHp: char.tempHp || 0,
+                            ac: char.ac || 10,
+                            effects: char.effects || [],
+                            initiative: char.initiative || null
+                        }));
+
+                        if (data.combatState) {
+                            combatState = data.combatState;
+                        }
+
+                        renderCharacters();
+
+                        // Obnovit UI tlačítka podle stavu boje
+                        if (combatState.active) {
+                            document.getElementById('startBtn').classList.add('hidden');
+                            document.getElementById('prevBtn').classList.remove('hidden');
+                            document.getElementById('nextBtn').classList.remove('hidden');
+                            document.getElementById('endBtn').classList.remove('hidden');
+                            document.getElementById('closeBtn').classList.remove('hidden');
+                            updateInitiativeDisplay();
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading from localStorage:', error);
+            }
+        }
+
+        // History/Undo systém
+        function saveState() {
+            const state = {
+                characters: JSON.parse(JSON.stringify(characters)),
+                combatState: JSON.parse(JSON.stringify(combatState))
+            };
+            historyStack.push(state);
+            if (historyStack.length > MAX_HISTORY) {
+                historyStack.shift();
+            }
+        }
+
+        function undo() {
+            if (historyStack.length === 0) {
+                alert('Nelze vrátit zpět - žádná historie změn!');
+                return;
+            }
+            const previousState = historyStack.pop();
+            characters = JSON.parse(JSON.stringify(previousState.characters));
+            combatState = JSON.parse(JSON.stringify(previousState.combatState));
+
+            // Obnovit UI podle stavu
+            renderCharacters();
+            if (combatState.active) {
+                document.getElementById('startBtn').classList.add('hidden');
+                document.getElementById('prevBtn').classList.remove('hidden');
+                document.getElementById('nextBtn').classList.remove('hidden');
+                document.getElementById('endBtn').classList.remove('hidden');
+                document.getElementById('closeBtn').classList.remove('hidden');
+                updateInitiativeDisplay();
+            } else {
+                document.getElementById('startBtn').classList.remove('hidden');
+                document.getElementById('prevBtn').classList.add('hidden');
+                document.getElementById('nextBtn').classList.add('hidden');
+                document.getElementById('endBtn').classList.add('hidden');
+                document.getElementById('closeBtn').classList.add('hidden');
+                document.getElementById('initiativeOrder').classList.add('hidden');
+            }
+        }
+
+        // Drag and Drop funkce
+        function handleDragStart(e, index) {
+            if (!combatState.active) return;
+            saveState();
+            draggedCharacterIndex = index;
+            e.target.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        }
+
+        function handleDragOver(e) {
+            if (!combatState.active || draggedCharacterIndex === null) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+        }
+
+        function handleDragEnter(e, index) {
+            if (!combatState.active || draggedCharacterIndex === null) return;
+            const card = e.currentTarget;
+            card.classList.add('drag-over');
+        }
+
+        function handleDragLeave(e) {
+            if (!combatState.active) return;
+            const card = e.currentTarget;
+            card.classList.remove('drag-over');
+        }
+
+        function handleDrop(e, dropIndex) {
+            if (!combatState.active || draggedCharacterIndex === null) return;
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over');
+
+            if (draggedCharacterIndex === dropIndex) return;
+
+            // Uchování ID aktuální postavy na tahu
+            const currentCharId = characters[combatState.currentTurn].id;
+
+            // Přesuň postavu
+            const draggedChar = characters[draggedCharacterIndex];
+            characters.splice(draggedCharacterIndex, 1);
+            characters.splice(dropIndex, 0, draggedChar);
+
+            // Najdi novou pozici aktuální postavy na tahu
+            const newCurrentIndex = characters.findIndex(char => char.id === currentCharId);
+            combatState.currentTurn = newCurrentIndex;
+
+            // Přepočítej playedThisRound indexy
+            const newPlayedThisRound = [];
+            for (let i = 0; i < newCurrentIndex; i++) {
+                newPlayedThisRound.push(i);
+            }
+            combatState.playedThisRound = newPlayedThisRound;
+
+            updateInitiativeDisplay();
+            renderCharacters();
+            draggedCharacterIndex = null;
+        }
+
+        function handleDragEnd(e) {
+            e.target.classList.remove('dragging');
+            document.querySelectorAll('.drag-over').forEach(card => {
+                card.classList.remove('drag-over');
+            });
+            draggedCharacterIndex = null;
+        }
+
         function renderCharacters() {
             const listDiv = document.getElementById('characterList');
             listDiv.innerHTML = characters.map((char, index) => {
@@ -1007,7 +1228,17 @@
                 const hpPercentage = (char.currentHp / char.maxHp) * 100;
                 
                 return `
-                    <div class="character-card ${isActive ? 'active' : ''} ${hasPlayed ? 'played' : ''}">
+                    <div class="character-card ${isActive ? 'active' : ''} ${hasPlayed ? 'played' : ''}"
+                         draggable="${combatState.active ? 'true' : 'false'}"
+                         data-index="${index}"
+                         ondragstart="handleDragStart(event, ${index})"
+                         ondragover="handleDragOver(event)"
+                         ondragenter="handleDragEnter(event, ${index})"
+                         ondragleave="handleDragLeave(event)"
+                         ondrop="handleDrop(event, ${index})"
+                         ondragend="handleDragEnd(event)"
+                         style="${combatState.active ? 'cursor: move;' : ''}"
+                    >
                         <div class="character-header">
                             <span class="character-name" onclick="openEffectModal(${char.id})">${char.name}</span>
                             <span class="character-type">${char.type === 'player' ? 'Hráč' : 'Monstrum'}</span>
@@ -1025,6 +1256,10 @@
                             <div class="stat-group">
                                 <div class="stat-label">Dočasné HP</div>
                                 <div class="stat-value">${char.tempHp}</div>
+                            </div>
+                            <div class="stat-group">
+                                <div class="stat-label">AC</div>
+                                <div class="stat-value">${char.ac || 10}</div>
                             </div>
                             <div class="stat-group">
                                 <div class="stat-label">Iniciativa</div>
@@ -1077,6 +1312,7 @@
                     </div>
                 `;
             }).join('');
+            saveToLocalStorage();
         }
 
         function saveData() {
@@ -1087,6 +1323,7 @@
                     maxHp: char.maxHp,
                     currentHp: char.currentHp,
                     tempHp: char.tempHp,
+                    ac: char.ac,
                     initBonus: char.initBonus,
                     maxPower: char.maxPower,
                     currentPower: char.currentPower,
@@ -1094,7 +1331,7 @@
                 })),
                 timestamp: new Date().toISOString()
             };
-            
+
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -1119,9 +1356,10 @@
                             id: Date.now() + Math.random(),
                             initiative: null,
                             tempHp: char.tempHp || 0,
+                            ac: char.ac || 10,
                             effects: char.effects || []
                         }));
-                        
+
                         characters = characters.concat(newCharacters);
                         renderCharacters();
                         alert(`Úspěšně načteno ${newCharacters.length} postav!`);
@@ -1151,8 +1389,48 @@
             }
         }
 
+        // Uložení před zavřením stránky
+        window.addEventListener('beforeunload', function(e) {
+            saveToLocalStorage();
+        });
+
+        // Klávesové zkratky
+        document.addEventListener('keydown', function(e) {
+            // Ignoruj zkratky pokud je otevřený modal nebo pokud píšeme do inputu
+            if (document.getElementById('effectModal').style.display === 'block' ||
+                e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                return;
+            }
+
+            switch(e.key) {
+                case ' ': // Space
+                case 'PageUp':
+                    if (combatState.active) {
+                        e.preventDefault();
+                        nextTurn();
+                    }
+                    break;
+                case 'PageDown':
+                    if (combatState.active) {
+                        e.preventDefault();
+                        previousTurn();
+                    }
+                    break;
+                case 'Backspace':
+                    e.preventDefault();
+                    undo();
+                    break;
+            }
+        });
+
         // Inicializace
-        renderCharacters();
+        loadFromLocalStorage();
+        if (characters.length === 0) {
+            renderCharacters();
+        }
+
+        // Auto-save každých 30 sekund
+        autoSaveInterval = setInterval(saveToLocalStorage, 30000);
     </script>
 </body>
 </html>
