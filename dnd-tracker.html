@@ -2089,9 +2089,9 @@
         // Helper pro Player mode - barevný indikátor zdraví monster
         function getMonsterHealthIndicator(currentHp, maxHp) {
             const percentage = (currentHp / maxHp) * 100;
-            if (percentage > 66) return '🟢 Zdravý';
-            if (percentage > 33) return '🟡 Zraněný';
-            return '🔴 Kritický';
+            if (percentage > 66) return '🟢 Healthy';
+            if (percentage > 33) return '🟡 Bloodied';
+            return '🔴 Critical';
         }
 
         function getHpBarClass(currentHp, maxHp) {
