@@ -2246,9 +2246,11 @@
                             ` : ''}
                         </div>
 
+                        ${(isDM || char.type === 'player') ? `
                         <div class="hp-bar">
                             <div class="hp-fill ${getHpBarClass(char.currentHp, char.maxHp)}" style="width: ${hpPercentage}%"></div>
                         </div>
+                        ` : ''}
 
                         <div class="effects">
                             ${char.effects.map((effect, idx) => `<span class="effect-tag ${getEffectClass(effect)}" title="${getEffectDescription(effect)}" onclick="removeEffectFromCharacter(${char.id}, ${idx})">${effectToString(effect)}</span>`).join('')}
