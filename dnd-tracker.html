@@ -812,9 +812,15 @@
                     monster.initBonus = Math.floor((monster.stats.dex - 10) / 2);
                 }
 
-                // Parse CR
-                const crMatch = text.match(/\*\*Challenge\*\*\s*([\d\/]+)/i);
-                if (crMatch) monster.cr = crMatch[1];
+                // Parse Challenge points místo CR
+                const challengeMatch = text.match(/\*\*Challenge\*\*\s*[\d\/]+\s*\((\d+)\s*points?\)/i);
+                if (challengeMatch) {
+                    monster.cr = challengeMatch[1] + ' point' + (challengeMatch[1] === '1' ? '' : 's');
+                } else {
+                    // Fallback na původní CR, pokud nejsou body
+                    const crMatch = text.match(/\*\*Challenge\*\*\s*([\d\/]+)/i);
+                    if (crMatch) monster.cr = crMatch[1];
+                }
 
                 // Parse Type
                 const typeMatch = text.match(/\*\*Type:\*\*\s*(\w+)/i);
@@ -824,18 +830,20 @@
                 const sizeMatch = text.match(/\*\*Size:\*\*\s*(\w+)/i);
                 if (sizeMatch) monster.size = sizeMatch[1].toLowerCase();
 
-                // Parse Traits (mezi # Defense Traits a # Actions)
+                // Parse Traits (mezi # Defense Traits a # Actions) - zachovej seznamy a formátování
                 const traitsSection = text.match(/# (?:Defense Traits|Regular Traits)([\s\S]*?)(?=# Actions|$)/i);
                 if (traitsSection) {
-                    const traits = traitsSection[1].match(/\*\*[^*]+\*\*[^\n*]+/g);
-                    if (traits) monster.traits = traits.map(t => t.trim());
+                    // Rozděl podle patternu, kde trait začíná **Název** na začátku řádku
+                    const traitBlocks = traitsSection[1].split(/(?=^\*\*[A-Z])/m).filter(t => t.trim());
+                    monster.traits = traitBlocks.map(t => t.trim());
                 }
 
-                // Parse Actions
+                // Parse Actions - zachovej seznamy a formátování
                 const actionsSection = text.match(/# Actions([\s\S]*?)(?=---|$)/i);
                 if (actionsSection) {
-                    const actions = actionsSection[1].match(/\*\*[^*]+\*\*[^\n*]+/g);
-                    if (actions) monster.actions = actions.map(a => a.trim());
+                    // Rozděl podle patternu, kde action začíná **Název** na začátku řádku
+                    const actionBlocks = actionsSection[1].split(/(?=^\*\*[A-Z])/m).filter(a => a.trim());
+                    monster.actions = actionBlocks.map(a => a.trim());
                 }
 
                 // Pokud nemáme jméno, zkus najít první nadpis
@@ -856,7 +864,7 @@
             preview.innerHTML = `
                 <p><strong>Jméno:</strong> ${monster.name || 'Neznámé'}</p>
                 <p><strong>AC:</strong> ${monster.ac} | <strong>HP:</strong> ${monster.hp} | <strong>Initiative Bonus:</strong> +${monster.initBonus}</p>
-                <p><strong>Type:</strong> ${monster.type} | <strong>Size:</strong> ${monster.size} | <strong>CR:</strong> ${monster.cr}</p>
+                <p><strong>Type:</strong> ${monster.type} | <strong>Size:</strong> ${monster.size} | <strong>Challenge:</strong> ${monster.cr}</p>
                 <p><strong>Stats:</strong> STR ${monster.stats.str}, DEX ${monster.stats.dex}, CON ${monster.stats.con}, INT ${monster.stats.int}, WIS ${monster.stats.wis}, CHA ${monster.stats.cha}</p>
                 <p><strong>Traits:</strong> ${monster.traits.length} | <strong>Actions:</strong> ${monster.actions.length}</p>
             `;
@@ -900,7 +908,7 @@
                             ${monster.name}
                         </div>
                         <div class="monster-stats-quick">
-                            AC ${monster.ac} | HP ${monster.hp} | Init +${monster.initBonus} | CR ${monster.cr}
+                            AC ${monster.ac} | HP ${monster.hp} | Init +${monster.initBonus} | ${monster.cr}
                         </div>
                     </div>
                     <div class="monster-actions">
@@ -952,6 +960,44 @@
         // Tooltip systém
         let tooltipElement = null;
 
+        // Pomocná funkce pro převod markdown na HTML
+        function markdownToHtml(text) {
+            // Převeď **bold** na <strong>
+            let html = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+            // Zpracuj číslované seznamy
+            const lines = html.split('\n');
+            let inList = false;
+            let result = [];
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+
+                // Detekuj číslovaný seznam
+                if (/^\d+\.\s+/.test(line)) {
+                    if (!inList) {
+                        result.push('<ol style="margin: 5px 0; padding-left: 20px;">');
+                        inList = true;
+                    }
+                    result.push('<li>' + line.replace(/^\d+\.\s+/, '') + '</li>');
+                } else {
+                    if (inList) {
+                        result.push('</ol>');
+                        inList = false;
+                    }
+                    if (line) {
+                        result.push(line + '<br>');
+                    }
+                }
+            }
+
+            if (inList) {
+                result.push('</ol>');
+            }
+
+            return result.join('\n');
+        }
+
         function showMonsterTooltip(event, monsterId) {
             const monster = monsterDatabase.find(m => m.id === monsterId);
             if (!monster) return;
@@ -963,11 +1009,11 @@
             }
 
             const traitsHtml = monster.traits.length > 0
-                ? `<div class="tooltip-section"><h4>Traits:</h4>${monster.traits.slice(0, 3).map(t => `<p>${t}</p>`).join('')}${monster.traits.length > 3 ? '<p><em>...a další</em></p>' : ''}</div>`
+                ? `<div class="tooltip-section"><h4>Traits:</h4>${monster.traits.slice(0, 3).map(t => `<div style="margin-bottom: 10px;">${markdownToHtml(t)}</div>`).join('')}${monster.traits.length > 3 ? '<p><em>...a další</em></p>' : ''}</div>`
                 : '';
 
             const actionsHtml = monster.actions.length > 0
-                ? `<div class="tooltip-section"><h4>Actions:</h4>${monster.actions.slice(0, 3).map(a => `<p>${a}</p>`).join('')}${monster.actions.length > 3 ? '<p><em>...a další</em></p>' : ''}</div>`
+                ? `<div class="tooltip-section"><h4>Actions:</h4>${monster.actions.slice(0, 3).map(a => `<div style="margin-bottom: 10px;">${markdownToHtml(a)}</div>`).join('')}${monster.actions.length > 3 ? '<p><em>...a další</em></p>' : ''}</div>`
                 : '';
 
             tooltipElement.innerHTML = `
@@ -1896,9 +1942,9 @@
                             <span class="statblock-toggle" onclick="toggleStatblock(${char.id})">📖 Zobrazit statblock</span>
                             <div id="statblock-${char.id}" class="statblock-panel">
                                 <h5>Traits:</h5>
-                                ${char.monsterData.traits.map(t => `<p>${t}</p>`).join('')}
+                                ${char.monsterData.traits.map(t => `<div style="margin-bottom: 10px;">${markdownToHtml(t)}</div>`).join('')}
                                 <h5>Actions:</h5>
-                                ${char.monsterData.actions.map(a => `<p>${a}</p>`).join('')}
+                                ${char.monsterData.actions.map(a => `<div style="margin-bottom: 10px;">${markdownToHtml(a)}</div>`).join('')}
                             </div>
                         </div>
                         ` : ''}
