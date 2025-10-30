@@ -2155,6 +2155,7 @@
                                         <div><strong>CHA</strong><br>${char.monsterData.stats.cha} (${Math.floor((char.monsterData.stats.cha - 10) / 2) >= 0 ? '+' : ''}${Math.floor((char.monsterData.stats.cha - 10) / 2)})</div>
                                     </div>
                                     ${char.monsterData.savingThrows ? `<p style="margin-top: 8px;"><strong>Saving Throws:</strong> ${char.monsterData.savingThrows}</p>` : ''}
+                                    ${char.monsterData.resistances ? `<p style="margin-top: 5px;"><strong>Resistances:</strong> ${char.monsterData.resistances}</p>` : ''}
                                     ${char.monsterData.immunities ? `<p style="margin-top: 5px;"><strong>Immunities:</strong> ${char.monsterData.immunities}</p>` : ''}
                                 </div>
                                 <h5>Traits:</h5>
