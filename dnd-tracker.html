@@ -428,6 +428,7 @@
             <h2>📁 Správa dat</h2>
             <div class="file-controls">
                 <button onclick="saveData()">💾 Uložit data</button>
+                <button onclick="saveCombatState()" class="btn-warning" id="saveCombatBtn" style="display:none;">⚔️ Uložit stav boje</button>
                 <button onclick="document.getElementById('fileInput').click()">📂 Načíst data (kumulativně)</button>
                 <input type="file" id="fileInput" accept=".json" onchange="loadData(event)">
                 <button onclick="clearAll()" class="btn-danger">🗑️ Vymazat vše</button>
@@ -485,6 +486,7 @@
                             <option value="Blinded">Blinded (Oslepený)</option>
                             <option value="Charmed">Charmed (Okouzlený)</option>
                             <option value="Deafened">Deafened (Ohlušený)</option>
+                            <option value="Exhaustion">Exhaustion (Vyčerpání) - s levely 1-6</option>
                             <option value="Frightened">Frightened (Vystrašený)</option>
                             <option value="Grappled">Grappled (Uchvácený)</option>
                             <option value="Incapacitated">Incapacitated (Neschopný)</option>
@@ -555,7 +557,13 @@
             'Restrained': { type: 'debuff', description: 'Rychlost 0, nevýhoda na útoky a Dex záchranné hody. Útoky proti postavě mají výhodu.' },
             'Stunned': { type: 'debuff', description: 'Postava je neschopná, nemůže se hýbat a mluví jen nejasně. Automaticky neuspěje u Str a Dex záchran.' },
             'Unconscious': { type: 'debuff', description: 'Postava je neschopná, nemůže se hýbat ani mluvit, neuvědomělá. Automaticky neuspěje u Str a Dex záchran.' },
-            
+            'Exhaustion': {
+                type: 'debuff',
+                hasLevels: true,
+                maxLevel: 6,
+                description: 'Vyčerpání - Level 1: Nevýhoda na ability checks. Level 2: Poloviční rychlost. Level 3: Nevýhoda na útoky a záchranné hody. Level 4: Max HP na polovinu. Level 5: Rychlost 0. Level 6: Smrt.'
+            },
+
             // Buffs
             'Blessed': { type: 'buff', description: 'Bonus k záchranným hodům a útokům.' },
             'Hasted': { type: 'buff', description: 'Dvojnásobná rychlost, +2 AC, výhoda na Dex záchranné hody, extra akce.' },
@@ -565,7 +573,7 @@
             'Flying': { type: 'buff', description: 'Schopnost letu díky kouzlu nebo schopnosti.' },
             'Resistance': { type: 'buff', description: 'Odolnost proti určitému typu poškození.' },
             'Advantage': { type: 'buff', description: 'Výhoda na určitý typ hodů.' },
-            
+
             // Neutrální/Situační
             'Concentrating': { type: 'neutral', description: 'Postava se soustředí na kouzlo. Při poškození hází záchranný hod na koncentraci.' },
             'Marked': { type: 'neutral', description: 'Postava je označená pro sledování nebo speciální efekt.' },
@@ -815,6 +823,7 @@
             document.getElementById('nextBtn').classList.remove('hidden');
             document.getElementById('endBtn').classList.remove('hidden');
             document.getElementById('closeBtn').classList.remove('hidden');
+            document.getElementById('saveCombatBtn').style.display = 'inline-block';
 
             updateInitiativeDisplay();
             renderCharacters();
@@ -862,11 +871,9 @@
             combatState.round = 1;
             combatState.playedThisRound = [];
 
-            // Reset pouze initiative a efekty, HP zůstává
+            // Reset pouze initiative, efekty ZŮSTÁVAJÍ, HP zůstává
             characters.forEach(char => {
                 char.initiative = null;
-                char.effects.forEach(effect => handleEffectRemoval(char, effect));
-                char.effects = [];
                 // Resetuj Moc pouze u monster
                 if (char.type === 'monster') {
                     char.currentPower = char.maxPower;
@@ -878,6 +885,7 @@
             document.getElementById('nextBtn').classList.add('hidden');
             document.getElementById('endBtn').classList.add('hidden');
             document.getElementById('closeBtn').classList.add('hidden');
+            document.getElementById('saveCombatBtn').style.display = 'none';
             document.getElementById('initiativeOrder').classList.add('hidden');
 
             renderCharacters();
@@ -889,13 +897,11 @@
             combatState.round = 1;
             combatState.playedThisRound = [];
 
-            // Odstraň všechna monstra a reset pouze iniciativy a efektů u hráčů
+            // Odstraň všechna monstra, u hráčů reset pouze iniciativy, efekty ZŮSTÁVAJÍ
             characters = characters.filter(char => {
                 if (char.type === 'player') {
                     char.initiative = null;
-                    char.effects.forEach(effect => handleEffectRemoval(char, effect));
-                    char.effects = [];
-                    // HP zůstává jak je
+                    // HP a efekty zůstávají
                     return true;
                 }
                 return false;
@@ -906,6 +912,7 @@
             document.getElementById('nextBtn').classList.add('hidden');
             document.getElementById('endBtn').classList.add('hidden');
             document.getElementById('closeBtn').classList.add('hidden');
+            document.getElementById('saveCombatBtn').style.display = 'none';
             document.getElementById('initiativeOrder').classList.add('hidden');
 
             renderCharacters();
@@ -922,6 +929,30 @@
         function closeEffectModal() {
             document.getElementById('effectModal').style.display = 'none';
             currentEffectCharacterId = null;
+        }
+
+        // Helper funkce pro práci s efekty
+        function normalizeEffect(effect) {
+            // Převede starý string formát nebo objekt na jednotný formát
+            if (typeof effect === 'string') {
+                return { name: effect, level: null };
+            }
+            return effect;
+        }
+
+        function effectToString(effect) {
+            const normalized = normalizeEffect(effect);
+            if (normalized.level !== null && normalized.level !== undefined) {
+                return `${normalized.name} ${normalized.level}`;
+            }
+            return normalized.name;
+        }
+
+        function findEffectIndex(effects, effectName) {
+            return effects.findIndex(e => {
+                const norm = normalizeEffect(e);
+                return norm.name === effectName;
+            });
         }
 
         function addEffect() {
@@ -941,8 +972,17 @@
             if (!effectName || !currentEffectCharacterId) return;
 
             const character = characters.find(char => char.id === currentEffectCharacterId);
-            if (!character.effects.includes(effectName)) {
-                character.effects.push(effectName);
+
+            // Zkontroluj jestli efekt už má
+            const existingIndex = findEffectIndex(character.effects, effectName);
+            if (existingIndex === -1) {
+                // Přidej nový efekt
+                const effectDef = predefinedEffects[effectName];
+                if (effectDef && effectDef.hasLevels) {
+                    character.effects.push({ name: effectName, level: 1 });
+                } else {
+                    character.effects.push({ name: effectName, level: null });
+                }
                 renderEffects();
                 renderCharacters();
             }
@@ -959,43 +999,63 @@
             }
         }
 
-        function removeEffect(effectName) {
+        function changeEffectLevel(effectIndex, delta) {
             saveState();
             const character = characters.find(char => char.id === currentEffectCharacterId);
-            handleEffectRemoval(character, effectName);
-            character.effects = character.effects.filter(effect => effect !== effectName);
+            if (!character) return;
+
+            const effect = normalizeEffect(character.effects[effectIndex]);
+            const effectDef = predefinedEffects[effect.name];
+
+            if (effectDef && effectDef.hasLevels) {
+                const newLevel = Math.max(1, Math.min(effectDef.maxLevel, (effect.level || 1) + delta));
+                character.effects[effectIndex] = { name: effect.name, level: newLevel };
+                renderEffects();
+                renderCharacters();
+            }
+        }
+
+        function removeEffect(effectIndex) {
+            saveState();
+            const character = characters.find(char => char.id === currentEffectCharacterId);
+            const effect = normalizeEffect(character.effects[effectIndex]);
+            handleEffectRemoval(character, effect.name);
+            character.effects.splice(effectIndex, 1);
             renderEffects();
             renderCharacters();
         }
 
-        function removeEffectFromCharacter(id, effectName) {
+        function removeEffectFromCharacter(id, effectIndex) {
             saveState();
             const character = characters.find(char => char.id === id);
             if (!character) return;
-            handleEffectRemoval(character, effectName);
-            character.effects = character.effects.filter(effect => effect !== effectName);
+            const effect = normalizeEffect(character.effects[effectIndex]);
+            handleEffectRemoval(character, effect.name);
+            character.effects.splice(effectIndex, 1);
             if (currentEffectCharacterId === id) {
                 renderEffects();
             }
             renderCharacters();
         }
 
-        function getEffectClass(effectName) {
-            if (predefinedEffects[effectName]) {
-                return predefinedEffects[effectName].type;
+        function getEffectClass(effect) {
+            const normalized = normalizeEffect(effect);
+            if (predefinedEffects[normalized.name]) {
+                return predefinedEffects[normalized.name].type;
             }
-            const match = effectName.match(/^Max HP ([+-]?\d+)/);
+            const match = normalized.name.match(/^Max HP ([+-]?\d+)/);
             if (match) {
                 return parseInt(match[1]) >= 0 ? 'buff' : 'debuff';
             }
             return 'neutral'; // Vlastní efekty jsou neutrální
         }
 
-        function getEffectDescription(effectName) {
-            if (predefinedEffects[effectName]) {
-                return predefinedEffects[effectName].description;
+        function getEffectDescription(effect) {
+            const normalized = normalizeEffect(effect);
+            if (predefinedEffects[normalized.name]) {
+                return predefinedEffects[normalized.name].description;
             }
-            const match = effectName.match(/^Max HP ([+-]?\d+)/);
+            const match = normalized.name.match(/^Max HP ([+-]?\d+)/);
             if (match) {
                 const amount = parseInt(match[1]);
                 return `Maximální HP ${amount >= 0 ? 'zvýšeno' : 'sníženo'} o ${Math.abs(amount)}`;
@@ -1006,23 +1066,37 @@
         function renderEffects() {
             const character = characters.find(char => char.id === currentEffectCharacterId);
             const effectList = document.getElementById('effectList');
-            
+
             if (character.effects.length === 0) {
                 effectList.innerHTML = '<p style="color: #7f8c8d; font-style: italic;">Žádné aktivní efekty</p>';
                 return;
             }
-            
+
             effectList.innerHTML = `
                 <div class="effect-list-container">
-                    ${character.effects.map(effect => `
-                        <div class="effect-item">
-                            <div>
-                                <span class="effect-tag ${getEffectClass(effect)}" title="${getEffectDescription(effect)}" onclick="removeEffectFromCharacter(currentEffectCharacterId, '${effect}')">${effect}</span>
-                                <div class="effect-description">${getEffectDescription(effect)}</div>
+                    ${character.effects.map((effect, index) => {
+                        const normalized = normalizeEffect(effect);
+                        const effectDef = predefinedEffects[normalized.name];
+                        const hasLevels = effectDef && effectDef.hasLevels;
+                        const displayText = effectToString(effect);
+
+                        return `
+                            <div class="effect-item">
+                                <div style="flex: 1;">
+                                    <span class="effect-tag ${getEffectClass(effect)}" title="${getEffectDescription(effect)}">${displayText}</span>
+                                    <div class="effect-description">${getEffectDescription(effect)}</div>
+                                    ${hasLevels ? `
+                                        <div style="margin-top: 5px;">
+                                            <button onclick="changeEffectLevel(${index}, -1)" class="btn-danger control-btn" style="font-size: 0.7em;">-</button>
+                                            <span style="margin: 0 5px; font-weight: bold;">Level ${normalized.level || 1}</span>
+                                            <button onclick="changeEffectLevel(${index}, 1)" class="btn-success control-btn" style="font-size: 0.7em;">+</button>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                                <button onclick="removeEffect(${index})" class="btn-danger control-btn">✕</button>
                             </div>
-                            <button onclick="removeEffect('${effect}')" class="btn-danger control-btn">✕</button>
-                        </div>
-                    `).join('')}
+                        `;
+                    }).join('')}
                 </div>
             `;
         }
@@ -1105,6 +1179,7 @@
                             document.getElementById('nextBtn').classList.remove('hidden');
                             document.getElementById('endBtn').classList.remove('hidden');
                             document.getElementById('closeBtn').classList.remove('hidden');
+                            document.getElementById('saveCombatBtn').style.display = 'inline-block';
                             updateInitiativeDisplay();
                         }
                     }
@@ -1143,6 +1218,7 @@
                 document.getElementById('nextBtn').classList.remove('hidden');
                 document.getElementById('endBtn').classList.remove('hidden');
                 document.getElementById('closeBtn').classList.remove('hidden');
+                document.getElementById('saveCombatBtn').style.display = 'inline-block';
                 updateInitiativeDisplay();
             } else {
                 document.getElementById('startBtn').classList.remove('hidden');
@@ -1150,6 +1226,7 @@
                 document.getElementById('nextBtn').classList.add('hidden');
                 document.getElementById('endBtn').classList.add('hidden');
                 document.getElementById('closeBtn').classList.add('hidden');
+                document.getElementById('saveCombatBtn').style.display = 'none';
                 document.getElementById('initiativeOrder').classList.add('hidden');
             }
         }
@@ -1281,7 +1358,7 @@
                         </div>
 
                         <div class="effects">
-                            ${char.effects.map(effect => `<span class="effect-tag ${getEffectClass(effect)}" title="${getEffectDescription(effect)}" onclick="removeEffectFromCharacter(${char.id}, '${effect}')">${effect}</span>`).join('')}
+                            ${char.effects.map((effect, idx) => `<span class="effect-tag ${getEffectClass(effect)}" title="${getEffectDescription(effect)}" onclick="removeEffectFromCharacter(${char.id}, ${idx})">${effectToString(effect)}</span>`).join('')}
                         </div>
                         
                         <div class="controls">
@@ -1337,6 +1414,39 @@
             const a = document.createElement('a');
             a.href = url;
             a.download = `dnd-tracker-${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function saveCombatState() {
+            const data = {
+                characters: characters.map(char => ({
+                    name: char.name,
+                    type: char.type,
+                    maxHp: char.maxHp,
+                    currentHp: char.currentHp,
+                    tempHp: char.tempHp,
+                    ac: char.ac,
+                    initBonus: char.initBonus,
+                    initiative: char.initiative,
+                    maxPower: char.maxPower,
+                    currentPower: char.currentPower,
+                    effects: char.effects
+                })),
+                combatState: {
+                    active: combatState.active,
+                    currentTurn: combatState.currentTurn,
+                    round: combatState.round,
+                    playedThisRound: combatState.playedThisRound
+                },
+                timestamp: new Date().toISOString()
+            };
+
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `dnd-combat-${new Date().toISOString().split('T')[0]}.json`;
             a.click();
             URL.revokeObjectURL(url);
         }
