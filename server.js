@@ -12,6 +12,11 @@ const PORT = 3000;
 // Serve static files
 app.use(express.static(__dirname));
 
+// Serve the main HTML file for root path
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'dnd-tracker.html'));
+});
+
 // Game state stored in memory
 let gameState = {
     characters: [],
