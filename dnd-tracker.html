@@ -418,6 +418,118 @@
             padding: 3px;
             text-align: center;
         }
+
+        /* Monster database styles */
+        .monster-card {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            border: 2px solid #ecf0f1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s;
+        }
+
+        .monster-card:hover {
+            border-color: #3498db;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+
+        .monster-info {
+            flex: 1;
+        }
+
+        .monster-name {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #2c3e50;
+            cursor: help;
+            position: relative;
+        }
+
+        .monster-stats-quick {
+            font-size: 0.9em;
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+
+        .monster-actions {
+            display: flex;
+            gap: 5px;
+        }
+
+        /* Tooltip styles */
+        .tooltip {
+            position: absolute;
+            display: none;
+            background: #2c3e50;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+            z-index: 10000;
+            max-width: 400px;
+            font-size: 0.85em;
+            line-height: 1.5;
+        }
+
+        .tooltip.show {
+            display: block;
+        }
+
+        .tooltip h4 {
+            margin: 0 0 10px 0;
+            color: #3498db;
+        }
+
+        .tooltip-section {
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .tooltip-section:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        /* Statblock panel (collapsible) */
+        .statblock-panel {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            border-left: 3px solid #3498db;
+            display: none;
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: 0.85em;
+            line-height: 1.6;
+        }
+
+        .statblock-panel.show {
+            display: block;
+        }
+
+        .statblock-panel h5 {
+            margin: 10px 0 5px 0;
+            color: #3498db;
+        }
+
+        .statblock-toggle {
+            cursor: pointer;
+            color: #3498db;
+            font-size: 0.9em;
+            margin-top: 5px;
+            display: inline-block;
+        }
+
+        .statblock-toggle:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -433,6 +545,7 @@
                 <input type="file" id="fileInput" accept=".json" onchange="loadData(event)">
                 <button onclick="document.getElementById('combatFileInput').click()" class="btn-success">⚔️ Načíst stav boje</button>
                 <input type="file" id="combatFileInput" accept=".json" onchange="loadCombatState(event)" style="display:none;">
+                <button onclick="openMonsterDatabase()" class="btn-purple">📚 Databáze monster</button>
                 <button onclick="clearAll()" class="btn-danger">🗑️ Vymazat vše</button>
             </div>
         </div>
@@ -470,6 +583,49 @@
         <div class="section">
             <h2>👥 Postavy a monstra</h2>
             <div id="characterList" class="character-list"></div>
+        </div>
+    </div>
+
+    <!-- Modal pro databázi monster -->
+    <div id="monsterDatabaseModal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <span class="close" onclick="closeMonsterDatabase()">&times;</span>
+            <h3>📚 Databáze monster</h3>
+
+            <div class="file-controls" style="margin-bottom: 15px;">
+                <button onclick="openAddMonsterModal()" class="btn-success">➕ Přidat monstrum</button>
+                <button onclick="exportMonsterDatabase()" class="btn-warning">💾 Exportovat databázi</button>
+                <button onclick="document.getElementById('monsterDbFileInput').click()">📂 Importovat databázi</button>
+                <input type="file" id="monsterDbFileInput" accept=".json" onchange="importMonsterDatabase(event)" style="display:none;">
+            </div>
+
+            <div id="monsterList" style="max-height: 500px; overflow-y: auto;"></div>
+        </div>
+    </div>
+
+    <!-- Modal pro přidání/import monstra -->
+    <div id="addMonsterModal" class="modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <span class="close" onclick="closeAddMonsterModal()">&times;</span>
+            <h3>➕ Přidat monstrum do databáze</h3>
+
+            <div style="margin: 15px 0;">
+                <h4>Import z Notion linku:</h4>
+                <input type="text" id="notionLinkInput" placeholder="https://www.notion.so/..." style="width: 100%; padding: 10px; margin-bottom: 10px;">
+                <button onclick="importFromNotion()" class="btn-success">Načíst z Notion</button>
+            </div>
+
+            <div style="margin: 15px 0;">
+                <h4>Nebo vložte statblock (Ctrl+V):</h4>
+                <textarea id="statblockInput" placeholder="Vložte celý statblock..." style="width: 100%; height: 300px; padding: 10px; font-family: monospace; font-size: 0.9em;"></textarea>
+                <button onclick="parseStatblock()" class="btn-success">Parsovat statblock</button>
+            </div>
+
+            <div id="monsterPreview" style="display: none; margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 5px;">
+                <h4>Náhled:</h4>
+                <div id="monsterPreviewContent"></div>
+                <button onclick="saveMonsterToDatabase()" class="btn-success" style="margin-top: 10px;">💾 Uložit do databáze</button>
+            </div>
         </div>
     </div>
 
@@ -541,7 +697,368 @@
         let historyStack = [];
         const MAX_HISTORY = 20;
         let draggedCharacterIndex = null;
+        let monsterDatabase = [];
+        let currentMonsterForStatblock = null;
         
+        // ===== MONSTER DATABASE FUNCTIONS =====
+
+        // LocalStorage pro databázi monster
+        function saveMonsterDatabaseToStorage() {
+            try {
+                localStorage.setItem('dnd-monster-database', JSON.stringify(monsterDatabase));
+            } catch (error) {
+                console.error('Error saving monster database:', error);
+            }
+        }
+
+        function loadMonsterDatabaseFromStorage() {
+            try {
+                const saved = localStorage.getItem('dnd-monster-database');
+                if (saved) {
+                    monsterDatabase = JSON.parse(saved);
+                }
+            } catch (error) {
+                console.error('Error loading monster database:', error);
+            }
+        }
+
+        // Modal funkce
+        function openMonsterDatabase() {
+            document.getElementById('monsterDatabaseModal').style.display = 'block';
+            renderMonsterList();
+        }
+
+        function closeMonsterDatabase() {
+            document.getElementById('monsterDatabaseModal').style.display = 'none';
+        }
+
+        function openAddMonsterModal() {
+            document.getElementById('addMonsterModal').style.display = 'block';
+            document.getElementById('statblockInput').value = '';
+            document.getElementById('notionLinkInput').value = '';
+            document.getElementById('monsterPreview').style.display = 'none';
+        }
+
+        function closeAddMonsterModal() {
+            document.getElementById('addMonsterModal').style.display = 'none';
+            currentMonsterForStatblock = null;
+        }
+
+        // Parser pro statblock
+        function parseStatblock() {
+            const input = document.getElementById('statblockInput').value;
+            if (!input.trim()) {
+                alert('Vložte prosím statblock!');
+                return;
+            }
+
+            const monster = parseStatblockText(input);
+            if (monster) {
+                currentMonsterForStatblock = monster;
+                showMonsterPreview(monster);
+            } else {
+                alert('Nepodařilo se parsovat statblock. Zkontrolujte formát.');
+            }
+        }
+
+        function parseStatblockText(text) {
+            try {
+                const monster = {
+                    name: '',
+                    ac: 10,
+                    hp: 10,
+                    speed: '30 ft.',
+                    initBonus: 0,
+                    stats: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+                    cr: '0',
+                    type: 'unknown',
+                    size: 'medium',
+                    rawStatblock: text,
+                    traits: [],
+                    actions: []
+                };
+
+                // Parse název (první řádek nebo z **Armor Class:**)
+                const firstLine = text.split('\n')[0].trim();
+                if (firstLine && !firstLine.includes(':')) {
+                    monster.name = firstLine.replace(/^#+ /, '');
+                }
+
+                // Parse AC
+                const acMatch = text.match(/\*\*Armor Class:\*\*\s*(\d+)/i);
+                if (acMatch) monster.ac = parseInt(acMatch[1]);
+
+                // Parse HP
+                const hpMatch = text.match(/\*\*Hit Points:\*\*\s*(\d+)/i);
+                if (hpMatch) monster.hp = parseInt(hpMatch[1]);
+
+                // Parse Speed
+                const speedMatch = text.match(/\*\*Speed:\*\*\s*([^\n]+)/i);
+                if (speedMatch) monster.speed = speedMatch[1].trim();
+
+                // Parse Stats z tabulky
+                const statsMatch = text.match(/\|\s*(\d+)\s*\([+-]?\d+\)\s*\|\s*(\d+)\s*\([+-]?\d+\)\s*\|\s*(\d+)\s*\([+-]?\d+\)\s*\|\s*(\d+)\s*\([+-]?\d+\)\s*\|\s*(\d+)\s*\([+-]?\d+\)\s*\|\s*(\d+)\s*\([+-]?\d+\)\s*\|/);
+                if (statsMatch) {
+                    monster.stats.str = parseInt(statsMatch[1]);
+                    monster.stats.dex = parseInt(statsMatch[2]);
+                    monster.stats.con = parseInt(statsMatch[3]);
+                    monster.stats.int = parseInt(statsMatch[4]);
+                    monster.stats.wis = parseInt(statsMatch[5]);
+                    monster.stats.cha = parseInt(statsMatch[6]);
+
+                    // Vypočítej initiative bonus z Dexterity
+                    monster.initBonus = Math.floor((monster.stats.dex - 10) / 2);
+                }
+
+                // Parse CR
+                const crMatch = text.match(/\*\*Challenge\*\*\s*([\d\/]+)/i);
+                if (crMatch) monster.cr = crMatch[1];
+
+                // Parse Type
+                const typeMatch = text.match(/\*\*Type:\*\*\s*(\w+)/i);
+                if (typeMatch) monster.type = typeMatch[1].toLowerCase();
+
+                // Parse Size
+                const sizeMatch = text.match(/\*\*Size:\*\*\s*(\w+)/i);
+                if (sizeMatch) monster.size = sizeMatch[1].toLowerCase();
+
+                // Parse Traits (mezi # Defense Traits a # Actions)
+                const traitsSection = text.match(/# (?:Defense Traits|Regular Traits)([\s\S]*?)(?=# Actions|$)/i);
+                if (traitsSection) {
+                    const traits = traitsSection[1].match(/\*\*[^*]+\*\*[^\n*]+/g);
+                    if (traits) monster.traits = traits.map(t => t.trim());
+                }
+
+                // Parse Actions
+                const actionsSection = text.match(/# Actions([\s\S]*?)(?=---|$)/i);
+                if (actionsSection) {
+                    const actions = actionsSection[1].match(/\*\*[^*]+\*\*[^\n*]+/g);
+                    if (actions) monster.actions = actions.map(a => a.trim());
+                }
+
+                // Pokud nemáme jméno, zkus najít první nadpis
+                if (!monster.name) {
+                    const nameMatch = text.match(/^#+ (.+)$/m);
+                    if (nameMatch) monster.name = nameMatch[1].trim();
+                }
+
+                return monster;
+            } catch (error) {
+                console.error('Parse error:', error);
+                return null;
+            }
+        }
+
+        function showMonsterPreview(monster) {
+            const preview = document.getElementById('monsterPreviewContent');
+            preview.innerHTML = `
+                <p><strong>Jméno:</strong> ${monster.name || 'Neznámé'}</p>
+                <p><strong>AC:</strong> ${monster.ac} | <strong>HP:</strong> ${monster.hp} | <strong>Initiative Bonus:</strong> +${monster.initBonus}</p>
+                <p><strong>Type:</strong> ${monster.type} | <strong>Size:</strong> ${monster.size} | <strong>CR:</strong> ${monster.cr}</p>
+                <p><strong>Stats:</strong> STR ${monster.stats.str}, DEX ${monster.stats.dex}, CON ${monster.stats.con}, INT ${monster.stats.int}, WIS ${monster.stats.wis}, CHA ${monster.stats.cha}</p>
+                <p><strong>Traits:</strong> ${monster.traits.length} | <strong>Actions:</strong> ${monster.actions.length}</p>
+            `;
+            document.getElementById('monsterPreview').style.display = 'block';
+        }
+
+        function saveMonsterToDatabase() {
+            if (!currentMonsterForStatblock) return;
+
+            if (!currentMonsterForStatblock.name) {
+                alert('Monstrum musí mít jméno!');
+                return;
+            }
+
+            monsterDatabase.push({
+                ...currentMonsterForStatblock,
+                id: Date.now() + Math.random()
+            });
+
+            saveMonsterDatabaseToStorage();
+            closeAddMonsterModal();
+            renderMonsterList();
+            alert(`${currentMonsterForStatblock.name} přidán do databáze!`);
+        }
+
+        // Render seznam monster v databázi
+        function renderMonsterList() {
+            const listDiv = document.getElementById('monsterList');
+
+            if (monsterDatabase.length === 0) {
+                listDiv.innerHTML = '<p style="color: #7f8c8d; text-align: center; padding: 40px;">Databáze je prázdná. Přidejte první monstrum!</p>';
+                return;
+            }
+
+            listDiv.innerHTML = monsterDatabase.map(monster => `
+                <div class="monster-card">
+                    <div class="monster-info">
+                        <div class="monster-name"
+                             onmouseenter="showMonsterTooltip(event, ${monster.id})"
+                             onmouseleave="hideMonsterTooltip()">
+                            ${monster.name}
+                        </div>
+                        <div class="monster-stats-quick">
+                            AC ${monster.ac} | HP ${monster.hp} | Init +${monster.initBonus} | CR ${monster.cr}
+                        </div>
+                    </div>
+                    <div class="monster-actions">
+                        <button onclick="addMonsterToCombat(${monster.id})" class="btn-success control-btn" title="Přidat do boje">➕</button>
+                        <button onclick="deleteMonsterFromDatabase(${monster.id})" class="btn-danger control-btn" title="Smazat">🗑️</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Přidat monstrum z databáze do boje
+        function addMonsterToCombat(monsterId) {
+            const monster = monsterDatabase.find(m => m.id === monsterId);
+            if (!monster) return;
+
+            const character = {
+                id: Date.now() + Math.random(),
+                name: monster.name,
+                type: 'monster',
+                maxHp: monster.hp,
+                currentHp: monster.hp,
+                tempHp: 0,
+                ac: monster.ac,
+                initBonus: monster.initBonus,
+                initiative: null,
+                maxPower: 0,
+                currentPower: 0,
+                effects: [],
+                monsterData: monster // Ulož kompletní data pro tooltip a panel
+            };
+
+            characters.push(character);
+            renderCharacters();
+            alert(`${monster.name} přidán do boje!`);
+        }
+
+        // Smazat monstrum z databáze
+        function deleteMonsterFromDatabase(monsterId) {
+            const monster = monsterDatabase.find(m => m.id === monsterId);
+            if (!monster) return;
+
+            if (confirm(`Opravdu chcete smazat ${monster.name} z databáze?`)) {
+                monsterDatabase = monsterDatabase.filter(m => m.id !== monsterId);
+                saveMonsterDatabaseToStorage();
+                renderMonsterList();
+            }
+        }
+
+        // Tooltip systém
+        let tooltipElement = null;
+
+        function showMonsterTooltip(event, monsterId) {
+            const monster = monsterDatabase.find(m => m.id === monsterId);
+            if (!monster) return;
+
+            if (!tooltipElement) {
+                tooltipElement = document.createElement('div');
+                tooltipElement.className = 'tooltip';
+                document.body.appendChild(tooltipElement);
+            }
+
+            const traitsHtml = monster.traits.length > 0
+                ? `<div class="tooltip-section"><h4>Traits:</h4>${monster.traits.slice(0, 3).map(t => `<p>${t}</p>`).join('')}${monster.traits.length > 3 ? '<p><em>...a další</em></p>' : ''}</div>`
+                : '';
+
+            const actionsHtml = monster.actions.length > 0
+                ? `<div class="tooltip-section"><h4>Actions:</h4>${monster.actions.slice(0, 3).map(a => `<p>${a}</p>`).join('')}${monster.actions.length > 3 ? '<p><em>...a další</em></p>' : ''}</div>`
+                : '';
+
+            tooltipElement.innerHTML = `
+                <h4>${monster.name}</h4>
+                <div class="tooltip-section">
+                    <p><strong>${monster.size} ${monster.type}</strong></p>
+                    <p>AC ${monster.ac}, HP ${monster.hp}, Speed ${monster.speed}</p>
+                </div>
+                ${traitsHtml}
+                ${actionsHtml}
+            `;
+
+            tooltipElement.classList.add('show');
+            positionTooltip(event);
+        }
+
+        function hideMonsterTooltip() {
+            if (tooltipElement) {
+                tooltipElement.classList.remove('show');
+            }
+        }
+
+        function positionTooltip(event) {
+            if (!tooltipElement) return;
+
+            const x = event.clientX + 10;
+            const y = event.clientY + 10;
+
+            tooltipElement.style.position = 'fixed';
+            tooltipElement.style.left = x + 'px';
+            tooltipElement.style.top = y + 'px';
+        }
+
+        // Export/Import databáze
+        function exportMonsterDatabase() {
+            const data = {
+                monsters: monsterDatabase,
+                timestamp: new Date().toISOString()
+            };
+
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `dnd-monster-database-${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function importMonsterDatabase(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (data.monsters && Array.isArray(data.monsters)) {
+                        monsterDatabase = data.monsters;
+                        saveMonsterDatabaseToStorage();
+                        renderMonsterList();
+                        alert(`Úspěšně importováno ${data.monsters.length} monster!`);
+                    } else {
+                        alert('Neplatný formát databáze!');
+                    }
+                } catch (error) {
+                    alert('Chyba při načítání databáze!');
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        // Notion link import (placeholder)
+        function importFromNotion() {
+            const link = document.getElementById('notionLinkInput').value;
+            if (!link.trim()) {
+                alert('Vložte prosím Notion link!');
+                return;
+            }
+
+            alert('Notion API import není zatím implementován. Prosím použijte copy/paste statblocku do textarea níže.');
+            // TODO: Implementovat Notion API fetch
+        }
+
+        // Toggle statblock panel
+        function toggleStatblock(charId) {
+            const panel = document.getElementById(`statblock-${charId}`);
+            if (panel) {
+                panel.classList.toggle('show');
+            }
+        }
+
         // Předdefinované D&D 5e kondice/efekty
         const predefinedEffects = {
             // Debuffs
@@ -1371,7 +1888,19 @@
                         <div class="effects">
                             ${char.effects.map((effect, idx) => `<span class="effect-tag ${getEffectClass(effect)}" title="${getEffectDescription(effect)}" onclick="removeEffectFromCharacter(${char.id}, ${idx})">${effectToString(effect)}</span>`).join('')}
                         </div>
-                        
+
+                        ${char.monsterData ? `
+                        <div>
+                            <span class="statblock-toggle" onclick="toggleStatblock(${char.id})">📖 Zobrazit statblock</span>
+                            <div id="statblock-${char.id}" class="statblock-panel">
+                                <h5>Traits:</h5>
+                                ${char.monsterData.traits.map(t => `<p>${t}</p>`).join('')}
+                                <h5>Actions:</h5>
+                                ${char.monsterData.actions.map(a => `<p>${a}</p>`).join('')}
+                            </div>
+                        </div>
+                        ` : ''}
+
                         <div class="controls">
                             <button onclick="updateHp(${char.id}, -1)" class="btn-danger control-btn">HP -1</button>
                             <button onclick="updateHp(${char.id}, -10)" class="btn-danger control-btn">HP -10</button>
@@ -1607,6 +2136,7 @@
 
         // Inicializace
         loadFromLocalStorage();
+        loadMonsterDatabaseFromStorage();
         if (characters.length === 0) {
             renderCharacters();
         }
