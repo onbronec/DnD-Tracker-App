@@ -385,11 +385,13 @@
 
         .modal-content {
             background-color: #fefefe;
-            margin: 15% auto;
+            margin: 5% auto;
             padding: 20px;
             border-radius: 10px;
             width: 80%;
             max-width: 500px;
+            max-height: 85vh;
+            overflow-y: auto;
         }
 
         .close {
@@ -617,7 +619,7 @@
 
             <div style="margin: 15px 0;">
                 <h4>Nebo vložte statblock (Ctrl+V):</h4>
-                <textarea id="statblockInput" placeholder="Vložte celý statblock..." style="width: 100%; height: 300px; padding: 10px; font-family: monospace; font-size: 0.9em;"></textarea>
+                <textarea id="statblockInput" placeholder="Vložte celý statblock..." style="width: 100%; height: 200px; padding: 10px; font-family: monospace; font-size: 0.9em;"></textarea>
                 <button onclick="parseStatblock()" class="btn-success">Parsovat statblock</button>
             </div>
 
