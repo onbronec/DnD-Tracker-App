@@ -15,11 +15,12 @@ Jednoduchá aplikace pro sledování hit pointů, iniciativy a "Moci" během D&D
 
 ### ✨ Nové funkce
 
-#### 💾 Automatické ukládání
+#### 💾 Automatické ukládání a správa boje
 - **LocalStorage auto-save**: Data se automaticky ukládají každých 30 sekund a při zavření stránky
 - Žádná ztráta postupu při nečekaném zavření prohlížeče
 - Aplikace automaticky obnoví stav při opětovném otevření
-- **Uložit stav boje**: Nové tlačítko pro uložení probíhajícího boje včetně kola, tahu a iniciativy do JSON souboru
+- **⚔️ Uložit stav boje**: Tlačítko pro export probíhajícího boje včetně kola, tahu a iniciativy do JSON souboru
+- **⚔️ Načíst stav boje**: Tlačítko pro načtení uloženého boje - přepíše vše a obnoví přesný stav včetně kola a tahu
 
 #### ↩️ Historie a vrácení změn
 - **Undo systém**: Vraťte se zpět až 20 akcí pomocí Backspace klávesy
@@ -46,7 +47,10 @@ Jednoduchá aplikace pro sledování hit pointů, iniciativy a "Moci" během D&D
 #### 🎭 Pokročilé efekty
 - **Efekty zůstávají i mimo boj**: Důležité efekty jako Exhaustion, Max HP změny, nebo Restrained persistují i po ukončení boje
 - **Efekty s levely**: Exhaustion a další efekty podporují levely 1-6
-- **Ovládání levelů**: Tlačítka +/- pro zvyšování/snižování levelu efektů přímo v UI
+- **Ovládání levelů**:
+  - Tlačítka +/- v modalu efektů pro zvyšování/snižování levelu
+  - **Kliknutí na efekt s levely na kartě**: sníží level o 1 (místo odstranění)
+  - Pouze na level 1 se efekt odstraní kliknutím
 - Vizuální zobrazení levelů u efektů (např. "Exhaustion 3")
 
 ### 🎲 Základní funkce
