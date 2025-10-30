@@ -725,6 +725,22 @@
                     </div>
                 </div>
 
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+                    <h4 style="margin: 0 0 10px 0; color: #3498db;">⚡ Power Systém</h4>
+
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px;"><strong>Název Power:</strong></label>
+                        <input type="text" id="editMonsterPowerName" style="width: 100%; padding: 8px;" placeholder="Power (nebo Grit, Fortitude, atd.)">
+                        <small style="color: #7f8c8d; display: block; margin-top: 3px;">Vlastní název pro power resource tohoto monstra</small>
+                    </div>
+
+                    <div>
+                        <label style="display: block; margin-bottom: 5px;"><strong>Maximální Power:</strong></label>
+                        <input type="number" id="editMonsterMaxPower" style="width: 100%; padding: 8px;" placeholder="0">
+                        <small style="color: #7f8c8d; display: block; margin-top: 3px;">Nechte 0 pokud monstrum nepoužívá power systém</small>
+                    </div>
+                </div>
+
                 <button onclick="saveEditedMonster()" class="btn-success" style="width: 100%; padding: 12px; font-size: 1.1em;">💾 Uložit změny</button>
             </div>
         </div>
@@ -1044,8 +1060,9 @@
                 ac: monster.ac,
                 initBonus: monster.initBonus,
                 initiative: null,
-                maxPower: 0,
-                currentPower: 0,
+                maxPower: monster.maxPower || 0,
+                currentPower: monster.maxPower || 0,
+                powerName: monster.powerName || 'Power',
                 effects: [],
                 monsterData: monster // Ulož kompletní data pro tooltip a panel
             };
@@ -1081,6 +1098,8 @@
             document.getElementById('editMonsterSpeed').value = monster.speed || '30 ft.';
             document.getElementById('editMonsterType').value = monster.type || 'unknown';
             document.getElementById('editMonsterSize').value = monster.size || 'medium';
+            document.getElementById('editMonsterPowerName').value = monster.powerName || 'Power';
+            document.getElementById('editMonsterMaxPower').value = monster.maxPower || 0;
 
             document.getElementById('editMonsterModal').style.display = 'block';
         }
@@ -1103,6 +1122,8 @@
             monster.speed = document.getElementById('editMonsterSpeed').value || '30 ft.';
             monster.type = document.getElementById('editMonsterType').value || 'unknown';
             monster.size = document.getElementById('editMonsterSize').value || 'medium';
+            monster.powerName = document.getElementById('editMonsterPowerName').value || 'Power';
+            monster.maxPower = parseInt(document.getElementById('editMonsterMaxPower').value) || 0;
 
             // Ulož do localStorage a aktualizuj zobrazení
             saveMonsterDatabaseToStorage();
@@ -1896,8 +1917,10 @@
                         initBonus: char.initBonus,
                         maxPower: char.maxPower,
                         currentPower: char.currentPower,
+                        powerName: char.powerName,
                         effects: char.effects,
-                        initiative: char.initiative
+                        initiative: char.initiative,
+                        monsterData: char.monsterData
                     })),
                     combatState: combatState,
                     timestamp: new Date().toISOString()
@@ -2104,7 +2127,7 @@
                             </div>
                             ${char.type === 'monster' ? `
                             <div class="stat-group">
-                                <div class="stat-label">Moc</div>
+                                <div class="stat-label">${char.powerName || 'Power'}</div>
                                 <div class="stat-value">${char.currentPower}/${char.maxPower}</div>
                             </div>
                             ` : ''}
@@ -2122,6 +2145,18 @@
                         <div>
                             <span class="statblock-toggle" onclick="toggleStatblock(${char.id})">📖 Zobrazit statblock</span>
                             <div id="statblock-${char.id}" class="statblock-panel">
+                                <div style="margin-bottom: 15px; font-size: 0.9em;">
+                                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; background: #ecf0f1; padding: 10px; border-radius: 5px;">
+                                        <div><strong>STR</strong><br>${char.monsterData.stats.str} (${Math.floor((char.monsterData.stats.str - 10) / 2) >= 0 ? '+' : ''}${Math.floor((char.monsterData.stats.str - 10) / 2)})</div>
+                                        <div><strong>DEX</strong><br>${char.monsterData.stats.dex} (${Math.floor((char.monsterData.stats.dex - 10) / 2) >= 0 ? '+' : ''}${Math.floor((char.monsterData.stats.dex - 10) / 2)})</div>
+                                        <div><strong>CON</strong><br>${char.monsterData.stats.con} (${Math.floor((char.monsterData.stats.con - 10) / 2) >= 0 ? '+' : ''}${Math.floor((char.monsterData.stats.con - 10) / 2)})</div>
+                                        <div><strong>INT</strong><br>${char.monsterData.stats.int} (${Math.floor((char.monsterData.stats.int - 10) / 2) >= 0 ? '+' : ''}${Math.floor((char.monsterData.stats.int - 10) / 2)})</div>
+                                        <div><strong>WIS</strong><br>${char.monsterData.stats.wis} (${Math.floor((char.monsterData.stats.wis - 10) / 2) >= 0 ? '+' : ''}${Math.floor((char.monsterData.stats.wis - 10) / 2)})</div>
+                                        <div><strong>CHA</strong><br>${char.monsterData.stats.cha} (${Math.floor((char.monsterData.stats.cha - 10) / 2) >= 0 ? '+' : ''}${Math.floor((char.monsterData.stats.cha - 10) / 2)})</div>
+                                    </div>
+                                    ${char.monsterData.savingThrows ? `<p style="margin-top: 8px;"><strong>Saving Throws:</strong> ${char.monsterData.savingThrows}</p>` : ''}
+                                    ${char.monsterData.immunities ? `<p style="margin-top: 5px;"><strong>Immunities:</strong> ${char.monsterData.immunities}</p>` : ''}
+                                </div>
                                 <h5>Traits:</h5>
                                 ${char.monsterData.traits.map(t => `<div style="margin-bottom: 10px;">${markdownToHtml(t)}</div>`).join('')}
                                 <h5>Actions:</h5>
@@ -2150,9 +2185,9 @@
 
                         ${char.type === 'monster' ? `
                         <div class="power-controls">
-                            <button onclick="updatePower(${char.id}, -1)" class="btn-danger control-btn">Moc -1</button>
+                            <button onclick="updatePower(${char.id}, -1)" class="btn-danger control-btn">${char.powerName || 'Power'} -1</button>
                             <input type="number" value="${char.currentPower}" onchange="setPower(${char.id}, this.value)" class="power-input">
-                            <button onclick="updatePower(${char.id}, 1)" class="btn-success control-btn">Moc +1</button>
+                            <button onclick="updatePower(${char.id}, 1)" class="btn-success control-btn">${char.powerName || 'Power'} +1</button>
                         </div>
                         ` : ''}
                     </div>
@@ -2200,7 +2235,9 @@
                     initiative: char.initiative,
                     maxPower: char.maxPower,
                     currentPower: char.currentPower,
-                    effects: char.effects
+                    powerName: char.powerName,
+                    effects: char.effects,
+                    monsterData: char.monsterData
                 })),
                 combatState: {
                     active: combatState.active,
