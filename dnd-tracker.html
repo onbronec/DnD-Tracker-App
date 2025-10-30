@@ -1138,9 +1138,15 @@
                             AC ${monster.ac} | HP ${monster.hp} | Init +${monster.initBonus} | ${monster.cr}
                         </div>
                     </div>
-                    <div class="monster-actions" style="display: flex; gap: 5px; align-items: center; flex-wrap: wrap;">
-                        <input type="number" id="count-${monster.id}" value="1" min="1" max="99" style="width: 50px;" title="Počet">
-                        <input type="number" id="groupsize-${monster.id}" value="1" min="1" max="99" style="width: 50px;" title="Velikost skupiny">
+                    <div class="monster-actions" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                        <div style="display: flex; flex-direction: column; align-items: center;">
+                            <label style="font-size: 0.7em; color: #7f8c8d; margin-bottom: 2px;">Počet</label>
+                            <input type="number" id="count-${monster.id}" value="1" min="1" max="99" style="width: 65px; text-align: center;" title="Celkový počet monster">
+                        </div>
+                        <div style="display: flex; flex-direction: column; align-items: center;">
+                            <label style="font-size: 0.7em; color: #7f8c8d; margin-bottom: 2px;">Počet skup.</label>
+                            <input type="number" id="numgroups-${monster.id}" value="1" min="1" max="99" style="width: 65px; text-align: center;" title="Počet skupin">
+                        </div>
                         <button onclick="addMonsterToCombat(${monster.id})" class="btn-success control-btn" title="Přidat do boje">➕</button>
                         <button onclick="openEditMonsterModal(${monster.id})" class="control-btn" style="background: #f39c12;" title="Editovat">✏️</button>
                         <button onclick="deleteMonsterFromDatabase(${monster.id})" class="btn-danger control-btn" title="Smazat">🗑️</button>
@@ -1154,14 +1160,14 @@
             const monster = monsterDatabase.find(m => m.id === monsterId);
             if (!monster) return;
 
-            // Get count and group size from inputs
+            // Get count and number of groups from inputs
             const countInput = document.getElementById(`count-${monsterId}`);
-            const groupSizeInput = document.getElementById(`groupsize-${monsterId}`);
+            const numGroupsInput = document.getElementById(`numgroups-${monsterId}`);
             const count = parseInt(countInput?.value) || 1;
-            const groupSize = parseInt(groupSizeInput?.value) || 1;
+            const numGroups = parseInt(numGroupsInput?.value) || 1;
 
-            // Calculate number of groups needed
-            const numGroups = Math.ceil(count / groupSize);
+            // Calculate group size (how many monsters per group)
+            const groupSize = Math.ceil(count / numGroups);
 
             // Helper function to get group letter (A, B, C, ... Z, AA, AB, ...)
             const getGroupLetter = (index) => {
@@ -1202,8 +1208,8 @@
                         powerName: monster.powerName || 'Power',
                         effects: [],
                         monsterData: monster,
-                        groupId: groupSize > 1 || numGroups > 1 ? groupId : null,
-                        groupName: groupSize > 1 || numGroups > 1 ? groupName : null
+                        groupId: numGroups > 1 ? groupId : null,
+                        groupName: numGroups > 1 ? groupName : null
                     };
 
                     characters.push(character);
