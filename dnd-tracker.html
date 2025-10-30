@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DnD Combat Tracker</title>
+    <script src="/socket.io/socket.io.js"></script>
     <style>
         * {
             margin: 0;
@@ -536,9 +537,15 @@
 </head>
 <body>
     <div class="container">
-        <h1>🐉 DnD Combat Tracker</h1>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h1>🐉 DnD Combat Tracker</h1>
+            <div style="text-align: right;">
+                <div id="viewMode" style="font-size: 0.9em; color: #7f8c8d; margin-bottom: 5px;"></div>
+                <div id="connectionStatus" style="font-size: 0.9em;">🔴 Disconnected</div>
+            </div>
+        </div>
 
-        <div class="section">
+        <div class="section" id="dataManagementSection">
             <h2>📁 Správa dat</h2>
             <div class="file-controls">
                 <button onclick="saveData()">💾 Uložit data</button>
@@ -552,7 +559,7 @@
             </div>
         </div>
 
-        <div class="section">
+        <div class="section" id="addCharacterSection">
             <h2>➕ Přidat postavu/monstrum</h2>
             <div class="form-group">
                 <input type="text" id="name" placeholder="Jméno" required>
@@ -747,6 +754,90 @@
     </div>
 
     <script>
+        // ===== MODE DETECTION & WEBSOCKET SETUP =====
+        const urlParams = new URLSearchParams(window.location.search);
+        const viewMode = urlParams.get('mode') || 'dm'; // 'dm' or 'player'
+        const isDM = viewMode === 'dm';
+        const isPlayer = viewMode === 'player';
+
+        // Update title based on mode
+        document.title = isDM ? 'DnD Tracker - DM' : 'DnD Tracker - Player View';
+
+        // WebSocket connection
+        let socket = null;
+        let isConnected = false;
+        let isSyncing = false; // Prevent sync loop
+
+        function initializeWebSocket() {
+            socket = io();
+
+            socket.on('connect', () => {
+                console.log('Connected to server');
+                isConnected = true;
+                updateConnectionStatus(true);
+            });
+
+            socket.on('disconnect', () => {
+                console.log('Disconnected from server');
+                isConnected = false;
+                updateConnectionStatus(false);
+            });
+
+            // Receive full state sync from server
+            socket.on('state-sync', (serverState) => {
+                isSyncing = true; // Set flag to prevent re-sync
+                characters = serverState.characters || [];
+                combatState = serverState.combatState || combatState;
+                monsterDatabase = serverState.monsterDatabase || [];
+
+                renderCharacters();
+                renderMonsterList();
+                updateInitiativeDisplay();
+                isSyncing = false; // Clear flag
+            });
+
+            // Receive individual character updates
+            socket.on('character-updated', (characterData) => {
+                isSyncing = true;
+                const index = characters.findIndex(c => c.id === characterData.id);
+                if (index !== -1) {
+                    characters[index] = characterData;
+                    renderCharacters();
+                }
+                isSyncing = false;
+            });
+
+            // Receive combat state updates
+            socket.on('combat-updated', (combatData) => {
+                isSyncing = true;
+                combatState = combatData;
+                updateInitiativeDisplay();
+                renderCharacters();
+                isSyncing = false;
+            });
+        }
+
+        // Send state updates to server
+        function syncToServer() {
+            if (isSyncing) return; // Don't sync if we're receiving updates
+            if (socket && isConnected) {
+                socket.emit('update-state', {
+                    characters,
+                    combatState,
+                    monsterDatabase
+                });
+            }
+        }
+
+        function updateConnectionStatus(connected) {
+            // Show connection status indicator
+            const indicator = document.getElementById('connectionStatus');
+            if (indicator) {
+                indicator.textContent = connected ? '🟢 Connected' : '🔴 Disconnected';
+                indicator.style.color = connected ? '#27ae60' : '#e74c3c';
+            }
+        }
+
         let characters = [];
         let combatState = {
             active: false,
@@ -1392,6 +1483,7 @@
             document.getElementById('currentPower').value = '';
 
             renderCharacters();
+            syncToServer();
         }
 
         function duplicateMonster(id) {
@@ -1430,6 +1522,7 @@
             saveState();
             characters = characters.filter(char => char.id !== id);
             renderCharacters();
+            syncToServer();
         }
 
         function updateHp(id, change) {
@@ -1451,6 +1544,7 @@
                 character.currentHp = Math.min(character.maxHp, character.currentHp + change);
             }
             renderCharacters();
+            syncToServer();
         }
 
         function applyCustomDamage(id) {
@@ -1596,6 +1690,7 @@
 
             updateInitiativeDisplay();
             renderCharacters();
+            syncToServer();
         }
 
         function nextTurn() {
@@ -1612,6 +1707,7 @@
 
             updateInitiativeDisplay();
             renderCharacters();
+            syncToServer();
         }
 
         function previousTurn() {
@@ -1632,6 +1728,7 @@
 
             updateInitiativeDisplay();
             renderCharacters();
+            syncToServer();
         }
 
         function endCombat() {
@@ -1658,6 +1755,7 @@
             document.getElementById('initiativeOrder').classList.add('hidden');
 
             renderCharacters();
+            syncToServer();
         }
 
         function closeCombat() {
@@ -1685,6 +1783,7 @@
             document.getElementById('initiativeOrder').classList.add('hidden');
 
             renderCharacters();
+            syncToServer();
         }
 
         function openEffectModal(id) {
@@ -1896,6 +1995,14 @@
             }
         }
 
+        // Helper pro Player mode - barevný indikátor zdraví monster
+        function getMonsterHealthIndicator(currentHp, maxHp) {
+            const percentage = (currentHp / maxHp) * 100;
+            if (percentage > 66) return '🟢 Zdravý';
+            if (percentage > 33) return '🟡 Zraněný';
+            return '🔴 Kritický';
+        }
+
         function getHpBarClass(currentHp, maxHp) {
             const percentage = (currentHp / maxHp) * 100;
             if (percentage <= 25) return 'low';
@@ -2099,16 +2206,22 @@
                         <div class="character-header">
                             <span class="character-name" onclick="openEffectModal(${char.id})">${char.name}</span>
                             <span class="character-type">${char.type === 'player' ? 'Hráč' : 'Monstrum'}</span>
+                            ${isDM ? `
                             <div>
                                 ${char.type === 'monster' ? `<button onclick="duplicateMonster(${char.id})" class="btn-success control-btn">➕</button>` : ''}
                                 <button onclick="removeCharacter(${char.id})" class="btn-danger control-btn">❌</button>
                             </div>
+                            ` : ''}
                         </div>
                         
                         <div class="character-stats">
                             <div class="stat-group">
                                 <div class="stat-label">HP</div>
-                                <div class="stat-value">${char.currentHp}/${char.maxHp}</div>
+                                <div class="stat-value">${
+                                    (isPlayer && char.type === 'monster')
+                                        ? getMonsterHealthIndicator(char.currentHp, char.maxHp)
+                                        : `${char.currentHp}/${char.maxHp}`
+                                }</div>
                             </div>
                             <div class="stat-group">
                                 <div class="stat-label">Dočasné HP</div>
@@ -2125,7 +2238,7 @@
                                     <span class="init-bonus">(${char.initBonus >= 0 ? '+' : ''}${char.initBonus})</span>
                                 </div>
                             </div>
-                            ${char.type === 'monster' ? `
+                            ${(char.type === 'monster' && isDM) ? `
                             <div class="stat-group">
                                 <div class="stat-label">${char.powerName || 'Power'}</div>
                                 <div class="stat-value">${char.currentPower}/${char.maxPower}</div>
@@ -2141,7 +2254,7 @@
                             ${char.effects.map((effect, idx) => `<span class="effect-tag ${getEffectClass(effect)}" title="${getEffectDescription(effect)}" onclick="removeEffectFromCharacter(${char.id}, ${idx})">${effectToString(effect)}</span>`).join('')}
                         </div>
 
-                        ${char.monsterData ? `
+                        ${(char.monsterData && isDM) ? `
                         <div>
                             <span class="statblock-toggle" onclick="toggleStatblock(${char.id})">📖 Zobrazit statblock</span>
                             <div id="statblock-${char.id}" class="statblock-panel">
@@ -2166,13 +2279,14 @@
                         </div>
                         ` : ''}
 
+                        ${(isDM || char.type === 'player') ? `
                         <div class="controls">
                             <button onclick="updateHp(${char.id}, -1)" class="btn-danger control-btn">HP -1</button>
                             <button onclick="updateHp(${char.id}, -10)" class="btn-danger control-btn">HP -10</button>
                             <button onclick="updateHp(${char.id}, 1)" class="btn-success control-btn">HP +1</button>
                             <button onclick="updateHp(${char.id}, 10)" class="btn-success control-btn">HP +10</button>
                         </div>
-                        
+
                         <div class="custom-hp-controls">
                             <input type="number" data-damage-id="${char.id}" class="custom-input" placeholder="Poškození">
                             <button onclick="applyCustomDamage(${char.id})" class="btn-danger control-btn">Aplikovat</button>
@@ -2183,8 +2297,9 @@
                             <input type="number" data-maxhp-id="${char.id}" class="custom-input" placeholder="Změna max HP">
                             <button onclick="applyMaxHpChange(${char.id})" class="btn-purple control-btn">Aplikovat</button>
                         </div>
+                        ` : ''}
 
-                        ${char.type === 'monster' ? `
+                        ${(char.type === 'monster' && isDM) ? `
                         <div class="power-controls">
                             <button onclick="updatePower(${char.id}, -1)" class="btn-danger control-btn">${char.powerName || 'Power'} -1</button>
                             <input type="number" value="${char.currentPower}" onchange="setPower(${char.id}, this.value)" class="power-input">
@@ -2401,15 +2516,48 @@
             }
         });
 
+        // ===== PLAYER MODE UI SETUP =====
+        function setupPlayerMode() {
+            // Update mode indicator
+            document.getElementById('viewMode').textContent = isPlayer ? '👥 Player View' : '🎲 DM View';
+
+            if (isPlayer) {
+                // Hide DM-only sections
+                const sectionsToHide = [
+                    'dataManagementSection',
+                    'addCharacterSection',
+                    'monsterDatabaseSection'
+                ];
+
+                sectionsToHide.forEach(id => {
+                    const section = document.getElementById(id);
+                    if (section) section.style.display = 'none';
+                });
+
+                // Disable auto-save for players (server is source of truth)
+                if (autoSaveInterval) {
+                    clearInterval(autoSaveInterval);
+                }
+            }
+        }
+
         // Inicializace
-        loadFromLocalStorage();
-        loadMonsterDatabaseFromStorage();
+        if (isDM) {
+            loadFromLocalStorage();
+            loadMonsterDatabaseFromStorage();
+            // Auto-save každých 30 sekund (DM only)
+            autoSaveInterval = setInterval(saveToLocalStorage, 30000);
+        }
+
         if (characters.length === 0) {
             renderCharacters();
         }
 
-        // Auto-save každých 30 sekund
-        autoSaveInterval = setInterval(saveToLocalStorage, 30000);
+        // Initialize WebSocket
+        initializeWebSocket();
+
+        // Setup UI based on mode
+        setupPlayerMode();
     </script>
 </body>
 </html>
