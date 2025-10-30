@@ -686,6 +686,50 @@
         </div>
     </div>
 
+    <!-- Modal pro editaci monstra -->
+    <div id="editMonsterModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeEditMonsterModal()">&times;</span>
+            <h3>✏️ Editovat monstrum</h3>
+
+            <div style="margin: 20px 0;">
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px;"><strong>Jméno:</strong></label>
+                    <input type="text" id="editMonsterName" style="width: 100%; padding: 8px;">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <label style="display: block; margin-bottom: 5px;"><strong>AC:</strong></label>
+                        <input type="number" id="editMonsterAC" style="width: 100%; padding: 8px;">
+                    </div>
+                    <div>
+                        <label style="display: block; margin-bottom: 5px;"><strong>HP:</strong></label>
+                        <input type="number" id="editMonsterHP" style="width: 100%; padding: 8px;">
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px;"><strong>Speed:</strong></label>
+                    <input type="text" id="editMonsterSpeed" style="width: 100%; padding: 8px;" placeholder="30 ft.">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <label style="display: block; margin-bottom: 5px;"><strong>Type:</strong></label>
+                        <input type="text" id="editMonsterType" style="width: 100%; padding: 8px;">
+                    </div>
+                    <div>
+                        <label style="display: block; margin-bottom: 5px;"><strong>Size:</strong></label>
+                        <input type="text" id="editMonsterSize" style="width: 100%; padding: 8px;">
+                    </div>
+                </div>
+
+                <button onclick="saveEditedMonster()" class="btn-success" style="width: 100%; padding: 12px; font-size: 1.1em;">💾 Uložit změny</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let characters = [];
         let combatState = {
@@ -701,7 +745,8 @@
         let draggedCharacterIndex = null;
         let monsterDatabase = [];
         let currentMonsterForStatblock = null;
-        
+        let currentEditingMonsterId = null;
+
         // ===== MONSTER DATABASE FUNCTIONS =====
 
         // LocalStorage pro databázi monster
@@ -775,6 +820,10 @@
                     cr: '0',
                     type: 'unknown',
                     size: 'medium',
+                    savingThrows: '',
+                    resistances: '',
+                    immunities: '',
+                    proficiency: '',
                     rawStatblock: text,
                     traits: [],
                     actions: []
@@ -810,6 +859,31 @@
 
                     // Vypočítej initiative bonus z Dexterity
                     monster.initBonus = Math.floor((monster.stats.dex - 10) / 2);
+                }
+
+                // Parse Saving Throws
+                const savingThrowsMatch = text.match(/\*\*Saving Throws:\*\*\s*([^\n]+)/i);
+                if (savingThrowsMatch) {
+                    monster.savingThrows = savingThrowsMatch[1].trim().replace(/,\s*$/, ''); // Odstraň trailing comma
+                }
+
+                // Parse Damage Resistances
+                const resistancesMatch = text.match(/\*\*Damage Resistances:\*\*\s*([^\n]+)/i);
+                if (resistancesMatch) {
+                    monster.resistances = resistancesMatch[1].trim();
+                }
+
+                // Parse Immunities
+                const immunitiesMatch = text.match(/\*\*Immunities:\*\*\s*([^\n]+)/i);
+                if (immunitiesMatch) {
+                    // Odstraň Notion linky jako [Frightened](url)
+                    monster.immunities = immunitiesMatch[1].trim().replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+                }
+
+                // Parse Proficiency
+                const proficiencyMatch = text.match(/\*\*Proficiency:\*\*\s*([+-]?\d+)/i);
+                if (proficiencyMatch) {
+                    monster.proficiency = proficiencyMatch[1];
                 }
 
                 // Parse Challenge points místo CR
@@ -861,12 +935,47 @@
 
         function showMonsterPreview(monster) {
             const preview = document.getElementById('monsterPreviewContent');
+
+            // Formátuj staty s bonusy
+            const statStr = (stat) => {
+                const bonus = Math.floor((stat - 10) / 2);
+                return `${stat} (${bonus >= 0 ? '+' : ''}${bonus})`;
+            };
+
             preview.innerHTML = `
-                <p><strong>Jméno:</strong> ${monster.name || 'Neznámé'}</p>
-                <p><strong>AC:</strong> ${monster.ac} | <strong>HP:</strong> ${monster.hp} | <strong>Initiative Bonus:</strong> +${monster.initBonus}</p>
-                <p><strong>Type:</strong> ${monster.type} | <strong>Size:</strong> ${monster.size} | <strong>Challenge:</strong> ${monster.cr}</p>
-                <p><strong>Stats:</strong> STR ${monster.stats.str}, DEX ${monster.stats.dex}, CON ${monster.stats.con}, INT ${monster.stats.int}, WIS ${monster.stats.wis}, CHA ${monster.stats.cha}</p>
-                <p><strong>Traits:</strong> ${monster.traits.length} | <strong>Actions:</strong> ${monster.actions.length}</p>
+                <div style="margin-bottom: 15px;">
+                    <p><strong>Jméno:</strong> ${monster.name || 'Neznámé'}</p>
+                    <p><strong>AC:</strong> ${monster.ac} | <strong>HP:</strong> ${monster.hp} | <strong>Speed:</strong> ${monster.speed}</p>
+                    <p><strong>Type:</strong> ${monster.type} | <strong>Size:</strong> ${monster.size} | <strong>Challenge:</strong> ${monster.cr}</p>
+                </div>
+
+                <div style="margin-bottom: 15px; font-size: 0.9em;">
+                    <table style="width: 100%; border-collapse: collapse; text-align: center;">
+                        <tr style="background: #ecf0f1;">
+                            <th style="padding: 5px;">STR</th>
+                            <th style="padding: 5px;">DEX</th>
+                            <th style="padding: 5px;">CON</th>
+                            <th style="padding: 5px;">INT</th>
+                            <th style="padding: 5px;">WIS</th>
+                            <th style="padding: 5px;">CHA</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 5px;">${statStr(monster.stats.str)}</td>
+                            <td style="padding: 5px;">${statStr(monster.stats.dex)}</td>
+                            <td style="padding: 5px;">${statStr(monster.stats.con)}</td>
+                            <td style="padding: 5px;">${statStr(monster.stats.int)}</td>
+                            <td style="padding: 5px;">${statStr(monster.stats.wis)}</td>
+                            <td style="padding: 5px;">${statStr(monster.stats.cha)}</td>
+                        </tr>
+                    </table>
+                </div>
+
+                ${monster.savingThrows ? `<p><strong>Saving Throws:</strong> ${monster.savingThrows}</p>` : ''}
+                ${monster.resistances ? `<p><strong>Damage Resistances:</strong> ${monster.resistances}</p>` : ''}
+                ${monster.immunities ? `<p><strong>Immunities:</strong> ${monster.immunities}</p>` : ''}
+                ${monster.proficiency ? `<p><strong>Proficiency:</strong> ${monster.proficiency}</p>` : ''}
+
+                <p style="margin-top: 10px;"><strong>Traits:</strong> ${monster.traits.length} | <strong>Actions:</strong> ${monster.actions.length}</p>
             `;
             document.getElementById('monsterPreview').style.display = 'block';
         }
@@ -913,6 +1022,7 @@
                     </div>
                     <div class="monster-actions">
                         <button onclick="addMonsterToCombat(${monster.id})" class="btn-success control-btn" title="Přidat do boje">➕</button>
+                        <button onclick="openEditMonsterModal(${monster.id})" class="control-btn" style="background: #f39c12;" title="Editovat">✏️</button>
                         <button onclick="deleteMonsterFromDatabase(${monster.id})" class="btn-danger control-btn" title="Smazat">🗑️</button>
                     </div>
                 </div>
@@ -955,6 +1065,51 @@
                 saveMonsterDatabaseToStorage();
                 renderMonsterList();
             }
+        }
+
+        // Editace monstra
+        function openEditMonsterModal(monsterId) {
+            const monster = monsterDatabase.find(m => m.id === monsterId);
+            if (!monster) return;
+
+            currentEditingMonsterId = monsterId;
+
+            // Naplň formulář aktuálními hodnotami
+            document.getElementById('editMonsterName').value = monster.name;
+            document.getElementById('editMonsterAC').value = monster.ac;
+            document.getElementById('editMonsterHP').value = monster.hp;
+            document.getElementById('editMonsterSpeed').value = monster.speed || '30 ft.';
+            document.getElementById('editMonsterType').value = monster.type || 'unknown';
+            document.getElementById('editMonsterSize').value = monster.size || 'medium';
+
+            document.getElementById('editMonsterModal').style.display = 'block';
+        }
+
+        function closeEditMonsterModal() {
+            document.getElementById('editMonsterModal').style.display = 'none';
+            currentEditingMonsterId = null;
+        }
+
+        function saveEditedMonster() {
+            if (!currentEditingMonsterId) return;
+
+            const monster = monsterDatabase.find(m => m.id === currentEditingMonsterId);
+            if (!monster) return;
+
+            // Aktualizuj hodnoty
+            monster.name = document.getElementById('editMonsterName').value;
+            monster.ac = parseInt(document.getElementById('editMonsterAC').value) || 10;
+            monster.hp = parseInt(document.getElementById('editMonsterHP').value) || 10;
+            monster.speed = document.getElementById('editMonsterSpeed').value || '30 ft.';
+            monster.type = document.getElementById('editMonsterType').value || 'unknown';
+            monster.size = document.getElementById('editMonsterSize').value || 'medium';
+
+            // Ulož do localStorage a aktualizuj zobrazení
+            saveMonsterDatabaseToStorage();
+            renderMonsterList();
+            closeEditMonsterModal();
+
+            alert('Monstrum aktualizováno!');
         }
 
         // Tooltip systém
@@ -1008,12 +1163,36 @@
                 document.body.appendChild(tooltipElement);
             }
 
+            // Formátuj staty s bonusy
+            const statStr = (stat) => {
+                const bonus = Math.floor((stat - 10) / 2);
+                return `${stat} (${bonus >= 0 ? '+' : ''}${bonus})`;
+            };
+
+            const statsHtml = `
+                <div class="tooltip-section" style="font-size: 0.85em;">
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; text-align: center;">
+                        <div><strong>STR</strong><br>${statStr(monster.stats.str)}</div>
+                        <div><strong>DEX</strong><br>${statStr(monster.stats.dex)}</div>
+                        <div><strong>CON</strong><br>${statStr(monster.stats.con)}</div>
+                        <div><strong>INT</strong><br>${statStr(monster.stats.int)}</div>
+                        <div><strong>WIS</strong><br>${statStr(monster.stats.wis)}</div>
+                        <div><strong>CHA</strong><br>${statStr(monster.stats.cha)}</div>
+                    </div>
+                </div>
+            `;
+
+            const extraInfoHtml = `
+                ${monster.savingThrows ? `<p style="font-size: 0.9em; margin: 3px 0;"><strong>Saves:</strong> ${monster.savingThrows}</p>` : ''}
+                ${monster.immunities ? `<p style="font-size: 0.9em; margin: 3px 0;"><strong>Immunities:</strong> ${monster.immunities}</p>` : ''}
+            `;
+
             const traitsHtml = monster.traits.length > 0
-                ? `<div class="tooltip-section"><h4>Traits:</h4>${monster.traits.slice(0, 3).map(t => `<div style="margin-bottom: 10px;">${markdownToHtml(t)}</div>`).join('')}${monster.traits.length > 3 ? '<p><em>...a další</em></p>' : ''}</div>`
+                ? `<div class="tooltip-section"><h4>Traits:</h4>${monster.traits.slice(0, 2).map(t => `<div style="margin-bottom: 10px;">${markdownToHtml(t)}</div>`).join('')}${monster.traits.length > 2 ? '<p><em>...a další</em></p>' : ''}</div>`
                 : '';
 
             const actionsHtml = monster.actions.length > 0
-                ? `<div class="tooltip-section"><h4>Actions:</h4>${monster.actions.slice(0, 3).map(a => `<div style="margin-bottom: 10px;">${markdownToHtml(a)}</div>`).join('')}${monster.actions.length > 3 ? '<p><em>...a další</em></p>' : ''}</div>`
+                ? `<div class="tooltip-section"><h4>Actions:</h4>${monster.actions.slice(0, 2).map(a => `<div style="margin-bottom: 10px;">${markdownToHtml(a)}</div>`).join('')}${monster.actions.length > 2 ? '<p><em>...a další</em></p>' : ''}</div>`
                 : '';
 
             tooltipElement.innerHTML = `
@@ -1021,7 +1200,9 @@
                 <div class="tooltip-section">
                     <p><strong>${monster.size} ${monster.type}</strong></p>
                     <p>AC ${monster.ac}, HP ${monster.hp}, Speed ${monster.speed}</p>
+                    ${extraInfoHtml}
                 </div>
+                ${statsHtml}
                 ${traitsHtml}
                 ${actionsHtml}
             `;
