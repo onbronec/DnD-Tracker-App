@@ -174,6 +174,17 @@
             color: #7f8c8d;
         }
 
+        .group-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.75em;
+            font-weight: bold;
+            margin-left: 8px;
+            color: white;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        }
+
         .character-stats {
             display: flex;
             justify-content: space-between;
@@ -1127,7 +1138,9 @@
                             AC ${monster.ac} | HP ${monster.hp} | Init +${monster.initBonus} | ${monster.cr}
                         </div>
                     </div>
-                    <div class="monster-actions">
+                    <div class="monster-actions" style="display: flex; gap: 5px; align-items: center; flex-wrap: wrap;">
+                        <input type="number" id="count-${monster.id}" value="1" min="1" max="99" style="width: 50px;" title="Počet">
+                        <input type="number" id="groupsize-${monster.id}" value="1" min="1" max="99" style="width: 50px;" title="Velikost skupiny">
                         <button onclick="addMonsterToCombat(${monster.id})" class="btn-success control-btn" title="Přidat do boje">➕</button>
                         <button onclick="openEditMonsterModal(${monster.id})" class="control-btn" style="background: #f39c12;" title="Editovat">✏️</button>
                         <button onclick="deleteMonsterFromDatabase(${monster.id})" class="btn-danger control-btn" title="Smazat">🗑️</button>
@@ -1141,26 +1154,71 @@
             const monster = monsterDatabase.find(m => m.id === monsterId);
             if (!monster) return;
 
-            const character = {
-                id: Date.now() + Math.random(),
-                name: monster.name,
-                type: 'monster',
-                maxHp: monster.hp,
-                currentHp: monster.hp,
-                tempHp: 0,
-                ac: monster.ac,
-                initBonus: monster.initBonus,
-                initiative: null,
-                maxPower: monster.maxPower || 0,
-                currentPower: monster.maxPower || 0,
-                powerName: monster.powerName || 'Power',
-                effects: [],
-                monsterData: monster // Ulož kompletní data pro tooltip a panel
+            // Get count and group size from inputs
+            const countInput = document.getElementById(`count-${monsterId}`);
+            const groupSizeInput = document.getElementById(`groupsize-${monsterId}`);
+            const count = parseInt(countInput?.value) || 1;
+            const groupSize = parseInt(groupSizeInput?.value) || 1;
+
+            // Calculate number of groups needed
+            const numGroups = Math.ceil(count / groupSize);
+
+            // Helper function to get group letter (A, B, C, ... Z, AA, AB, ...)
+            const getGroupLetter = (index) => {
+                let letter = '';
+                let num = index;
+                while (num >= 0) {
+                    letter = String.fromCharCode(65 + (num % 26)) + letter;
+                    num = Math.floor(num / 26) - 1;
+                }
+                return letter;
             };
 
-            characters.push(character);
+            let addedCount = 0;
+            const timestamp = Date.now();
+
+            for (let groupIndex = 0; groupIndex < numGroups; groupIndex++) {
+                const groupLetter = getGroupLetter(groupIndex);
+                const groupId = `${monster.name.toLowerCase().replace(/\s/g, '_')}_${timestamp}_${groupLetter}`;
+                const groupName = groupLetter;
+
+                // Calculate how many monsters in this group
+                const monstersInThisGroup = Math.min(groupSize, count - addedCount);
+
+                for (let i = 0; i < monstersInThisGroup; i++) {
+                    const monsterNumber = addedCount + 1;
+                    const character = {
+                        id: timestamp + Math.random() + addedCount,
+                        name: `${monster.name} ${monsterNumber}`,
+                        type: 'monster',
+                        maxHp: monster.hp,
+                        currentHp: monster.hp,
+                        tempHp: 0,
+                        ac: monster.ac,
+                        initBonus: monster.initBonus,
+                        initiative: null,
+                        maxPower: monster.maxPower || 0,
+                        currentPower: monster.maxPower || 0,
+                        powerName: monster.powerName || 'Power',
+                        effects: [],
+                        monsterData: monster,
+                        groupId: groupSize > 1 || numGroups > 1 ? groupId : null,
+                        groupName: groupSize > 1 || numGroups > 1 ? groupName : null
+                    };
+
+                    characters.push(character);
+                    addedCount++;
+                }
+            }
+
             renderCharacters();
-            alert(`${monster.name} přidán do boje!`);
+            syncToServer();
+
+            if (count === 1) {
+                alert(`${monster.name} přidán do boje!`);
+            } else {
+                alert(`Přidáno ${count}x ${monster.name} ve ${numGroups} skupinách!`);
+            }
         }
 
         // Smazat monstrum z databáze
@@ -1518,6 +1576,17 @@
             renderCharacters();
         }
 
+        function unlinkFromGroup(id) {
+            saveState();
+            const character = characters.find(char => char.id === id);
+            if (character && character.groupId) {
+                character.groupId = null;
+                character.groupName = null;
+                renderCharacters();
+                syncToServer();
+            }
+        }
+
         function removeCharacter(id) {
             saveState();
             characters = characters.filter(char => char.id !== id);
@@ -1621,7 +1690,16 @@
             if (character) {
                 const oldInitiative = character.initiative;
                 character.initiative = parseInt(value) || null;
-                
+
+                // If character is in a group, update all group members
+                if (character.groupId) {
+                    characters.forEach(char => {
+                        if (char.groupId === character.groupId && char.id !== id) {
+                            char.initiative = character.initiative;
+                        }
+                    });
+                }
+
                 // Pokud probíhá boj, přeorganizuj pořadí
                 if (combatState.active && character.initiative !== null) {
                     // Seřaď znovu podle iniciativy
@@ -1667,9 +1745,22 @@
 
         function startCombat() {
             // Hoď iniciativou pro všechny bez iniciativy
+            const processedGroups = new Set();
+
             characters.forEach(char => {
                 if (char.initiative === null) {
-                    char.initiative = rollInitiative(char);
+                    const initiative = rollInitiative(char);
+                    char.initiative = initiative;
+
+                    // If character is in a group, apply same initiative to all group members
+                    if (char.groupId && !processedGroups.has(char.groupId)) {
+                        processedGroups.add(char.groupId);
+                        characters.forEach(c => {
+                            if (c.groupId === char.groupId && c.id !== char.id) {
+                                c.initiative = initiative;
+                            }
+                        });
+                    }
                 }
             });
 
@@ -2010,6 +2101,28 @@
             return '';
         }
 
+        // Generate consistent color for group based on groupId
+        function getGroupColor(groupId) {
+            if (!groupId) return '#95a5a6';
+
+            // Predefined color palette for groups
+            const colors = [
+                '#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6',
+                '#1abc9c', '#e67e22', '#16a085', '#d35400', '#8e44ad',
+                '#c0392b', '#2980b9', '#27ae60', '#f1c40f', '#34495e'
+            ];
+
+            // Generate hash from groupId
+            let hash = 0;
+            for (let i = 0; i < groupId.length; i++) {
+                hash = groupId.charCodeAt(i) + ((hash << 5) - hash);
+            }
+
+            // Use hash to select color
+            const index = Math.abs(hash) % colors.length;
+            return colors[index];
+        }
+
         // LocalStorage funkce pro auto-save
         function saveToLocalStorage() {
             try {
@@ -2027,7 +2140,9 @@
                         powerName: char.powerName,
                         effects: char.effects,
                         initiative: char.initiative,
-                        monsterData: char.monsterData
+                        monsterData: char.monsterData,
+                        groupId: char.groupId,
+                        groupName: char.groupName
                     })),
                     combatState: combatState,
                     timestamp: new Date().toISOString()
@@ -2050,7 +2165,9 @@
                             tempHp: char.tempHp || 0,
                             ac: char.ac || 10,
                             effects: char.effects || [],
-                            initiative: char.initiative || null
+                            initiative: char.initiative || null,
+                            groupId: char.groupId || null,
+                            groupName: char.groupName || null
                         }));
 
                         if (data.combatState) {
@@ -2205,9 +2322,13 @@
                     >
                         <div class="character-header">
                             <span class="character-name" onclick="openEffectModal(${char.id})">${char.name}</span>
-                            <span class="character-type">${char.type === 'player' ? 'Hráč' : 'Monstrum'}</span>
+                            <div>
+                                <span class="character-type">${char.type === 'player' ? 'Hráč' : 'Monstrum'}</span>
+                                ${char.groupName ? `<span class="group-badge" style="background: ${getGroupColor(char.groupId)}">Group ${char.groupName}</span>` : ''}
+                            </div>
                             ${isDM ? `
                             <div>
+                                ${char.groupName ? `<button onclick="unlinkFromGroup(${char.id})" class="control-btn" style="background: #95a5a6;" title="Oddělit od skupiny">🔗</button>` : ''}
                                 ${char.type === 'monster' ? `<button onclick="duplicateMonster(${char.id})" class="btn-success control-btn">➕</button>` : ''}
                                 <button onclick="removeCharacter(${char.id})" class="btn-danger control-btn">❌</button>
                             </div>
@@ -2326,7 +2447,9 @@
                     initBonus: char.initBonus,
                     maxPower: char.maxPower,
                     currentPower: char.currentPower,
-                    effects: char.effects
+                    effects: char.effects,
+                    groupId: char.groupId,
+                    groupName: char.groupName
                 })),
                 timestamp: new Date().toISOString()
             };
@@ -2355,7 +2478,9 @@
                     currentPower: char.currentPower,
                     powerName: char.powerName,
                     effects: char.effects,
-                    monsterData: char.monsterData
+                    monsterData: char.monsterData,
+                    groupId: char.groupId,
+                    groupName: char.groupName
                 })),
                 combatState: {
                     active: combatState.active,
@@ -2391,7 +2516,9 @@
                             initiative: null,
                             tempHp: char.tempHp || 0,
                             ac: char.ac || 10,
-                            effects: char.effects || []
+                            effects: char.effects || [],
+                            groupId: char.groupId || null,
+                            groupName: char.groupName || null
                         }));
 
                         characters = characters.concat(newCharacters);
@@ -2423,7 +2550,9 @@
                             tempHp: char.tempHp || 0,
                             ac: char.ac || 10,
                             effects: char.effects || [],
-                            initiative: char.initiative || null
+                            initiative: char.initiative || null,
+                            groupId: char.groupId || null,
+                            groupName: char.groupName || null
                         }));
 
                         // Obnovit stav boje
