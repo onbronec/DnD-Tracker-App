@@ -1138,9 +1138,15 @@
                             AC ${monster.ac} | HP ${monster.hp} | Init +${monster.initBonus} | ${monster.cr}
                         </div>
                     </div>
-                    <div class="monster-actions" style="display: flex; gap: 5px; align-items: center; flex-wrap: wrap;">
-                        <input type="number" id="count-${monster.id}" value="1" min="1" max="99" style="width: 50px;" title="Počet">
-                        <input type="number" id="groupsize-${monster.id}" value="1" min="1" max="99" style="width: 50px;" title="Velikost skupiny">
+                    <div class="monster-actions" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                        <div style="display: flex; flex-direction: column; align-items: center;">
+                            <label style="font-size: 0.7em; color: #7f8c8d; margin-bottom: 2px;">Počet</label>
+                            <input type="number" id="count-${monster.id}" value="1" min="1" max="99" style="width: 65px; text-align: center;" title="Celkový počet monster">
+                        </div>
+                        <div style="display: flex; flex-direction: column; align-items: center;">
+                            <label style="font-size: 0.7em; color: #7f8c8d; margin-bottom: 2px;">Vel. skup.</label>
+                            <input type="number" id="groupsize-${monster.id}" value="1" min="1" max="99" style="width: 65px; text-align: center;" title="Kolik monster v jedné skupině">
+                        </div>
                         <button onclick="addMonsterToCombat(${monster.id})" class="btn-success control-btn" title="Přidat do boje">➕</button>
                         <button onclick="openEditMonsterModal(${monster.id})" class="control-btn" style="background: #f39c12;" title="Editovat">✏️</button>
                         <button onclick="deleteMonsterFromDatabase(${monster.id})" class="btn-danger control-btn" title="Smazat">🗑️</button>
