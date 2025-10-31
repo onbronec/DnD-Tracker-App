@@ -510,6 +510,17 @@
             padding-bottom: 0;
         }
 
+        .tooltip a {
+            color: #5dade2;
+            text-decoration: none;
+            border-bottom: 1px dotted #5dade2;
+        }
+
+        .tooltip a:hover {
+            color: #85c1e9;
+            border-bottom: 1px solid #85c1e9;
+        }
+
         /* Statblock panel (collapsible) */
         .statblock-panel {
             margin-top: 10px;
@@ -531,6 +542,17 @@
         .statblock-panel h5 {
             margin: 10px 0 5px 0;
             color: #3498db;
+        }
+
+        .statblock-panel a {
+            color: #3498db;
+            text-decoration: none;
+            border-bottom: 1px dotted #3498db;
+        }
+
+        .statblock-panel a:hover {
+            color: #2980b9;
+            border-bottom: 1px solid #2980b9;
         }
 
         .statblock-toggle {
@@ -1332,8 +1354,11 @@
 
         // Pomocná funkce pro převod markdown na HTML
         function markdownToHtml(text) {
+            // Převeď markdown odkazy [text](url) na HTML odkazy
+            let html = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+
             // Převeď **bold** na <strong>
-            let html = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+            html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
 
             // Zpracuj číslované seznamy
             const lines = html.split('\n');
