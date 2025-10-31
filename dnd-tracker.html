@@ -992,7 +992,7 @@
                     immunities: '',
                     proficiency: '',
                     rawStatblock: text,
-                    protectionTraits: [],
+                    defensiveTraits: [],
                     traits: [],
                     actions: [],
                     bonusActions: [],
@@ -1090,8 +1090,8 @@
                     return [];
                 };
 
-                // Parse Protection Traits
-                monster.protectionTraits = parseSection('Protection Traits');
+                // Parse Defensive Traits
+                monster.defensiveTraits = parseSection('Defensive Traits');
 
                 // Parse Regular Traits (také zachovej zpětnou kompatibilitu s "Defense Traits")
                 monster.traits = parseSection('Regular Traits');
@@ -1173,7 +1173,7 @@
                 ${monster.proficiency ? `<p><strong>Proficiency:</strong> ${monster.proficiency}</p>` : ''}
 
                 <div style="margin-top: 10px;">
-                    ${monster.protectionTraits && monster.protectionTraits.length > 0 ? `<p><strong>Protection Traits:</strong> ${monster.protectionTraits.length}</p>` : ''}
+                    ${monster.defensiveTraits && monster.defensiveTraits.length > 0 ? `<p><strong>Defensive Traits:</strong> ${monster.defensiveTraits.length}</p>` : ''}
                     ${monster.traits && monster.traits.length > 0 ? `<p><strong>Traits:</strong> ${monster.traits.length}</p>` : ''}
                     ${monster.actions && monster.actions.length > 0 ? `<p><strong>Actions:</strong> ${monster.actions.length}</p>` : ''}
                     ${monster.bonusActions && monster.bonusActions.length > 0 ? `<p><strong>Bonus Actions:</strong> ${monster.bonusActions.length}</p>` : ''}
@@ -1484,8 +1484,8 @@
                 ${monster.immunities ? `<p style="font-size: 0.9em; margin: 3px 0;"><strong>Immunities:</strong> ${monster.immunities}</p>` : ''}
             `;
 
-            const protectionTraitsHtml = monster.protectionTraits && monster.protectionTraits.length > 0
-                ? `<div class="tooltip-section"><h4>Protection Traits:</h4>${monster.protectionTraits.slice(0, 1).map(t => `<div style="margin-bottom: 10px;">${markdownToHtml(t)}</div>`).join('')}${monster.protectionTraits.length > 1 ? '<p><em>...a další</em></p>' : ''}</div>`
+            const defensiveTraitsHtml = monster.defensiveTraits && monster.defensiveTraits.length > 0
+                ? `<div class="tooltip-section"><h4>Defensive Traits:</h4>${monster.defensiveTraits.slice(0, 1).map(t => `<div style="margin-bottom: 10px;">${markdownToHtml(t)}</div>`).join('')}${monster.defensiveTraits.length > 1 ? '<p><em>...a další</em></p>' : ''}</div>`
                 : '';
 
             const traitsHtml = monster.traits && monster.traits.length > 0
@@ -1512,7 +1512,7 @@
                     ${extraInfoHtml}
                 </div>
                 ${statsHtml}
-                ${protectionTraitsHtml}
+                ${defensiveTraitsHtml}
                 ${traitsHtml}
                 ${actionsHtml}
                 ${bonusActionsHtml}
@@ -2593,9 +2593,9 @@
                                     ${char.monsterData.resistances ? `<p style="margin-top: 5px;"><strong>Resistances:</strong> ${char.monsterData.resistances}</p>` : ''}
                                     ${char.monsterData.immunities ? `<p style="margin-top: 5px;"><strong>Immunities:</strong> ${char.monsterData.immunities}</p>` : ''}
                                 </div>
-                                ${char.monsterData.protectionTraits && char.monsterData.protectionTraits.length > 0 ? `
-                                <h5>Protection Traits:</h5>
-                                ${char.monsterData.protectionTraits.map(t => `<div style="margin-bottom: 10px;">${markdownToHtml(t)}</div>`).join('')}
+                                ${char.monsterData.defensiveTraits && char.monsterData.defensiveTraits.length > 0 ? `
+                                <h5>Defensive Traits:</h5>
+                                ${char.monsterData.defensiveTraits.map(t => `<div style="margin-bottom: 10px;">${markdownToHtml(t)}</div>`).join('')}
                                 ` : ''}
                                 ${char.monsterData.traits && char.monsterData.traits.length > 0 ? `
                                 <h5>Traits:</h5>
