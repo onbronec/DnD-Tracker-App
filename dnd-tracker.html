@@ -115,6 +115,14 @@
             background: #8e44ad;
         }
 
+        .btn-secondary {
+            background: #95a5a6;
+        }
+
+        .btn-secondary:hover {
+            background: #7f8c8d;
+        }
+
         .character-list {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
@@ -782,6 +790,25 @@
                 </div>
 
                 <button onclick="saveEditedMonster()" class="btn-success" style="width: 100%; padding: 12px; font-size: 1.1em;">💾 Uložit změny</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Name Modal -->
+    <div id="fileNameModal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <span class="close" onclick="closeFileNameModal()">&times;</span>
+            <h3 id="fileNameModalTitle">💾 Pojmenovat soubor</h3>
+
+            <div style="margin: 20px 0;">
+                <label style="display: block; margin-bottom: 5px;"><strong>Název souboru:</strong></label>
+                <input type="text" id="fileNameInput" style="width: 100%; padding: 10px; font-size: 1em;" placeholder="název-souboru">
+                <small style="color: #7f8c8d; display: block; margin-top: 5px;">Přípona .json bude přidána automaticky</small>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <button onclick="closeFileNameModal()" class="btn-secondary" style="width: 100%; padding: 10px;">Zrušit</button>
+                <button onclick="confirmFileName()" class="btn-success" style="width: 100%; padding: 10px;">💾 Uložit</button>
             </div>
         </div>
     </div>
@@ -1490,13 +1517,8 @@
                 timestamp: new Date().toISOString()
             };
 
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `dnd-monster-database-${new Date().toISOString().split('T')[0]}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
+            const defaultName = `dnd-monster-database-${new Date().toISOString().split('T')[0]}`;
+            openFileNameModal('💾 Exportovat databázi monster', defaultName, data, downloadJsonFile);
         }
 
         function importMonsterDatabase(event) {
@@ -1521,6 +1543,68 @@
             };
             reader.readAsText(file);
             event.target.value = '';
+        }
+
+        // ===== FILE NAME MODAL FUNCTIONS =====
+        let fileNameCallback = null;
+        let currentFileData = null;
+
+        function openFileNameModal(title, defaultName, data, callback) {
+            document.getElementById('fileNameModalTitle').textContent = title;
+            document.getElementById('fileNameInput').value = defaultName;
+            currentFileData = data;
+            fileNameCallback = callback;
+            document.getElementById('fileNameModal').style.display = 'block';
+
+            // Focus na input a vybrat text
+            setTimeout(() => {
+                const input = document.getElementById('fileNameInput');
+                input.focus();
+                input.select();
+            }, 100);
+        }
+
+        function closeFileNameModal() {
+            document.getElementById('fileNameModal').style.display = 'none';
+            fileNameCallback = null;
+            currentFileData = null;
+        }
+
+        function confirmFileName() {
+            const fileName = document.getElementById('fileNameInput').value.trim();
+            if (!fileName) {
+                alert('Prosím zadejte název souboru!');
+                return;
+            }
+
+            if (fileNameCallback && currentFileData) {
+                fileNameCallback(fileName, currentFileData);
+            }
+
+            closeFileNameModal();
+        }
+
+        // Podpora pro Enter key v inputu
+        document.addEventListener('DOMContentLoaded', function() {
+            const fileNameInput = document.getElementById('fileNameInput');
+            if (fileNameInput) {
+                fileNameInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        confirmFileName();
+                    }
+                });
+            }
+        });
+
+        // Helper funkce pro stažení souboru
+        function downloadJsonFile(fileName, data) {
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${fileName}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
         }
 
         // Notion link import (placeholder)
@@ -2567,13 +2651,8 @@
                 timestamp: new Date().toISOString()
             };
 
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `dnd-tracker-${new Date().toISOString().split('T')[0]}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
+            const defaultName = `dnd-tracker-${new Date().toISOString().split('T')[0]}`;
+            openFileNameModal('💾 Uložit data postav', defaultName, data, downloadJsonFile);
         }
 
         function saveCombatState() {
@@ -2604,13 +2683,8 @@
                 timestamp: new Date().toISOString()
             };
 
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `dnd-combat-${new Date().toISOString().split('T')[0]}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
+            const defaultName = `dnd-combat-${new Date().toISOString().split('T')[0]}`;
+            openFileNameModal('💾 Uložit stav boje', defaultName, data, downloadJsonFile);
         }
 
         function loadData(event) {
