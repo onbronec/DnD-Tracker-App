@@ -943,8 +943,14 @@
                     immunities: '',
                     proficiency: '',
                     rawStatblock: text,
+                    protectionTraits: [],
                     traits: [],
-                    actions: []
+                    actions: [],
+                    bonusActions: [],
+                    reactions: [],
+                    legendaryActions: [],
+                    mythicActions: [],
+                    lairActions: []
                 };
 
                 // Parse název (první řádek nebo z **Armor Class:**)
@@ -1022,21 +1028,45 @@
                 const sizeMatch = text.match(/\*\*Size:\*\*\s*(\w+)/i);
                 if (sizeMatch) monster.size = sizeMatch[1].toLowerCase();
 
-                // Parse Traits (mezi # Defense Traits a # Actions) - zachovej seznamy a formátování
-                const traitsSection = text.match(/# (?:Defense Traits|Regular Traits)([\s\S]*?)(?=# Actions|$)/i);
-                if (traitsSection) {
-                    // Rozděl podle patternu, kde trait začíná **Název** na začátku řádku
-                    const traitBlocks = traitsSection[1].split(/(?=^\*\*[A-Z])/m).filter(t => t.trim());
-                    monster.traits = traitBlocks.map(t => t.trim());
+                // Helper funkce pro parsování sekcí
+                const parseSection = (sectionName) => {
+                    // Najdi sekci a extrahuj obsah až do další sekce nebo konce
+                    const sectionRegex = new RegExp(`# ${sectionName}([\\s\\S]*?)(?=# [A-Z]|---|$)`, 'i');
+                    const sectionMatch = text.match(sectionRegex);
+                    if (sectionMatch) {
+                        // Rozděl podle patternu, kde entry začíná **Název** na začátku řádku
+                        const blocks = sectionMatch[1].split(/(?=^\*\*[A-Z])/m).filter(b => b.trim());
+                        return blocks.map(b => b.trim());
+                    }
+                    return [];
+                };
+
+                // Parse Protection Traits
+                monster.protectionTraits = parseSection('Protection Traits');
+
+                // Parse Regular Traits (také zachovej zpětnou kompatibilitu s "Defense Traits")
+                monster.traits = parseSection('Regular Traits');
+                if (monster.traits.length === 0) {
+                    monster.traits = parseSection('Defense Traits');
                 }
 
-                // Parse Actions - zachovej seznamy a formátování
-                const actionsSection = text.match(/# Actions([\s\S]*?)(?=---|$)/i);
-                if (actionsSection) {
-                    // Rozděl podle patternu, kde action začíná **Název** na začátku řádku
-                    const actionBlocks = actionsSection[1].split(/(?=^\*\*[A-Z])/m).filter(a => a.trim());
-                    monster.actions = actionBlocks.map(a => a.trim());
-                }
+                // Parse Actions
+                monster.actions = parseSection('Actions');
+
+                // Parse Bonus Actions
+                monster.bonusActions = parseSection('Bonus Actions');
+
+                // Parse Reactions
+                monster.reactions = parseSection('Reactions');
+
+                // Parse Legendary Actions
+                monster.legendaryActions = parseSection('Legendary Actions');
+
+                // Parse Mythic Actions
+                monster.mythicActions = parseSection('Mythic Actions');
+
+                // Parse Lair Actions
+                monster.lairActions = parseSection('Lair Actions');
 
                 // Pokud nemáme jméno, zkus najít první nadpis
                 if (!monster.name) {
@@ -1093,7 +1123,16 @@
                 ${monster.immunities ? `<p><strong>Immunities:</strong> ${monster.immunities}</p>` : ''}
                 ${monster.proficiency ? `<p><strong>Proficiency:</strong> ${monster.proficiency}</p>` : ''}
 
-                <p style="margin-top: 10px;"><strong>Traits:</strong> ${monster.traits.length} | <strong>Actions:</strong> ${monster.actions.length}</p>
+                <div style="margin-top: 10px;">
+                    ${monster.protectionTraits && monster.protectionTraits.length > 0 ? `<p><strong>Protection Traits:</strong> ${monster.protectionTraits.length}</p>` : ''}
+                    ${monster.traits && monster.traits.length > 0 ? `<p><strong>Traits:</strong> ${monster.traits.length}</p>` : ''}
+                    ${monster.actions && monster.actions.length > 0 ? `<p><strong>Actions:</strong> ${monster.actions.length}</p>` : ''}
+                    ${monster.bonusActions && monster.bonusActions.length > 0 ? `<p><strong>Bonus Actions:</strong> ${monster.bonusActions.length}</p>` : ''}
+                    ${monster.reactions && monster.reactions.length > 0 ? `<p><strong>Reactions:</strong> ${monster.reactions.length}</p>` : ''}
+                    ${monster.legendaryActions && monster.legendaryActions.length > 0 ? `<p><strong>Legendary Actions:</strong> ${monster.legendaryActions.length}</p>` : ''}
+                    ${monster.mythicActions && monster.mythicActions.length > 0 ? `<p><strong>Mythic Actions:</strong> ${monster.mythicActions.length}</p>` : ''}
+                    ${monster.lairActions && monster.lairActions.length > 0 ? `<p><strong>Lair Actions:</strong> ${monster.lairActions.length}</p>` : ''}
+                </div>
             `;
             document.getElementById('monsterPreview').style.display = 'block';
         }
@@ -1363,12 +1402,24 @@
                 ${monster.immunities ? `<p style="font-size: 0.9em; margin: 3px 0;"><strong>Immunities:</strong> ${monster.immunities}</p>` : ''}
             `;
 
-            const traitsHtml = monster.traits.length > 0
+            const protectionTraitsHtml = monster.protectionTraits && monster.protectionTraits.length > 0
+                ? `<div class="tooltip-section"><h4>Protection Traits:</h4>${monster.protectionTraits.slice(0, 1).map(t => `<div style="margin-bottom: 10px;">${markdownToHtml(t)}</div>`).join('')}${monster.protectionTraits.length > 1 ? '<p><em>...a další</em></p>' : ''}</div>`
+                : '';
+
+            const traitsHtml = monster.traits && monster.traits.length > 0
                 ? `<div class="tooltip-section"><h4>Traits:</h4>${monster.traits.slice(0, 2).map(t => `<div style="margin-bottom: 10px;">${markdownToHtml(t)}</div>`).join('')}${monster.traits.length > 2 ? '<p><em>...a další</em></p>' : ''}</div>`
                 : '';
 
-            const actionsHtml = monster.actions.length > 0
+            const actionsHtml = monster.actions && monster.actions.length > 0
                 ? `<div class="tooltip-section"><h4>Actions:</h4>${monster.actions.slice(0, 2).map(a => `<div style="margin-bottom: 10px;">${markdownToHtml(a)}</div>`).join('')}${monster.actions.length > 2 ? '<p><em>...a další</em></p>' : ''}</div>`
+                : '';
+
+            const bonusActionsHtml = monster.bonusActions && monster.bonusActions.length > 0
+                ? `<div class="tooltip-section"><h4>Bonus Actions:</h4>${monster.bonusActions.slice(0, 1).map(a => `<div style="margin-bottom: 10px;">${markdownToHtml(a)}</div>`).join('')}${monster.bonusActions.length > 1 ? '<p><em>...a další</em></p>' : ''}</div>`
+                : '';
+
+            const reactionsHtml = monster.reactions && monster.reactions.length > 0
+                ? `<div class="tooltip-section"><h4>Reactions:</h4>${monster.reactions.slice(0, 1).map(r => `<div style="margin-bottom: 10px;">${markdownToHtml(r)}</div>`).join('')}${monster.reactions.length > 1 ? '<p><em>...a další</em></p>' : ''}</div>`
                 : '';
 
             tooltipElement.innerHTML = `
@@ -1379,8 +1430,11 @@
                     ${extraInfoHtml}
                 </div>
                 ${statsHtml}
+                ${protectionTraitsHtml}
                 ${traitsHtml}
                 ${actionsHtml}
+                ${bonusActionsHtml}
+                ${reactionsHtml}
             `;
 
             tooltipElement.classList.add('show');
@@ -2400,10 +2454,38 @@
                                     ${char.monsterData.resistances ? `<p style="margin-top: 5px;"><strong>Resistances:</strong> ${char.monsterData.resistances}</p>` : ''}
                                     ${char.monsterData.immunities ? `<p style="margin-top: 5px;"><strong>Immunities:</strong> ${char.monsterData.immunities}</p>` : ''}
                                 </div>
+                                ${char.monsterData.protectionTraits && char.monsterData.protectionTraits.length > 0 ? `
+                                <h5>Protection Traits:</h5>
+                                ${char.monsterData.protectionTraits.map(t => `<div style="margin-bottom: 10px;">${markdownToHtml(t)}</div>`).join('')}
+                                ` : ''}
+                                ${char.monsterData.traits && char.monsterData.traits.length > 0 ? `
                                 <h5>Traits:</h5>
                                 ${char.monsterData.traits.map(t => `<div style="margin-bottom: 10px;">${markdownToHtml(t)}</div>`).join('')}
+                                ` : ''}
+                                ${char.monsterData.actions && char.monsterData.actions.length > 0 ? `
                                 <h5>Actions:</h5>
                                 ${char.monsterData.actions.map(a => `<div style="margin-bottom: 10px;">${markdownToHtml(a)}</div>`).join('')}
+                                ` : ''}
+                                ${char.monsterData.bonusActions && char.monsterData.bonusActions.length > 0 ? `
+                                <h5>Bonus Actions:</h5>
+                                ${char.monsterData.bonusActions.map(a => `<div style="margin-bottom: 10px;">${markdownToHtml(a)}</div>`).join('')}
+                                ` : ''}
+                                ${char.monsterData.reactions && char.monsterData.reactions.length > 0 ? `
+                                <h5>Reactions:</h5>
+                                ${char.monsterData.reactions.map(r => `<div style="margin-bottom: 10px;">${markdownToHtml(r)}</div>`).join('')}
+                                ` : ''}
+                                ${char.monsterData.legendaryActions && char.monsterData.legendaryActions.length > 0 ? `
+                                <h5>Legendary Actions:</h5>
+                                ${char.monsterData.legendaryActions.map(a => `<div style="margin-bottom: 10px;">${markdownToHtml(a)}</div>`).join('')}
+                                ` : ''}
+                                ${char.monsterData.mythicActions && char.monsterData.mythicActions.length > 0 ? `
+                                <h5>Mythic Actions:</h5>
+                                ${char.monsterData.mythicActions.map(a => `<div style="margin-bottom: 10px;">${markdownToHtml(a)}</div>`).join('')}
+                                ` : ''}
+                                ${char.monsterData.lairActions && char.monsterData.lairActions.length > 0 ? `
+                                <h5>Lair Actions:</h5>
+                                ${char.monsterData.lairActions.map(a => `<div style="margin-bottom: 10px;">${markdownToHtml(a)}</div>`).join('')}
+                                ` : ''}
                             </div>
                         </div>
                         ` : ''}
