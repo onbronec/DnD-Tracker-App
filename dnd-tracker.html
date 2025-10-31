@@ -1205,6 +1205,37 @@
             alert(`${currentMonsterForStatblock.name} přidán do databáze!`);
         }
 
+        // ===== DYNAMIC NAME NUMBERING =====
+        // Helper funkce pro získání unikátního jména s inteligentním číslováním
+        function getUniqueName(baseName) {
+            // Escape speciální regex znaky v názvu
+            const escapedName = baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+            // Najdi všechny postavy se stejným základním jménem (s číslem nebo bez)
+            const regex = new RegExp(`^${escapedName}(\\s+\\d+)?$`, 'i');
+            const similarChars = characters.filter(c => regex.test(c.name));
+
+            // Pokud žádná podobná neexistuje, vrať základní jméno bez čísla
+            if (similarChars.length === 0) {
+                return baseName;
+            }
+
+            // Pokud existuje postava se stejným jménem BEZ čísla, přejmenuj ji na "název 1"
+            const unnumbered = similarChars.find(c => c.name === baseName);
+            if (unnumbered) {
+                unnumbered.name = `${baseName} 1`;
+            }
+
+            // Najdi nejvyšší použité číslo
+            const numbers = similarChars.map(c => {
+                const match = c.name.match(/\s+(\d+)$/);
+                return match ? parseInt(match[1]) : 0;
+            });
+
+            const maxNum = Math.max(...numbers, 1);  // Minimálně 1
+            return `${baseName} ${maxNum + 1}`;
+        }
+
         // Render seznam monster v databázi
         function renderMonsterList() {
             const listDiv = document.getElementById('monsterList');
@@ -1280,10 +1311,9 @@
                 const monstersInThisGroup = Math.min(groupSize, count - addedCount);
 
                 for (let i = 0; i < monstersInThisGroup; i++) {
-                    const monsterNumber = addedCount + 1;
                     const character = {
                         id: timestamp + Math.random() + addedCount,
-                        name: `${monster.name} ${monsterNumber}`,
+                        name: getUniqueName(monster.name),  // Použij inteligentní číslování
                         type: 'monster',
                         maxHp: monster.hp,
                         currentHp: monster.hp,
@@ -1685,7 +1715,7 @@
 
             const character = {
                 id: Date.now() + Math.random(),
-                name,
+                name: getUniqueName(name),  // Použij inteligentní číslování i pro hráče
                 type,
                 maxHp,
                 currentHp,
