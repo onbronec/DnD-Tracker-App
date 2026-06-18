@@ -1,5 +1,5 @@
 export type ClientRole = 'dm' | 'player';
-export type PageScope = 'combat' | 'spells' | 'monsters' | 'inventory' | 'databases' | 'toolbelt';
+export type PageScope = 'combat' | 'spells' | 'monsters' | 'inventory' | 'databases' | 'toolbelt' | 'monster-editor';
 
 export interface Effect {
   name: string;
@@ -75,6 +75,8 @@ export interface Character {
   sheetGeneral?: CharacterSheetGeneral;
   inventory: Inventory;
   spellbook: CharacterSpellbook;
+  hasMultipleTurns?: boolean;
+  group?: string;
 }
 
 export interface CharacterSpellbook {
@@ -141,6 +143,11 @@ export interface CustomFeature {
   longRestRegainAmount?: number;
   statusName?: string;
   statusEffect?: boolean;
+  trackerType?: 'none' | 'day' | 'rest' | 'round' | 'recharge' | 'power' | 'slot';
+  rechargeValue?: number;
+  costAmount?: number;
+  costSpellLevel?: string;
+  rechargeAttempted?: boolean;
 }
 
 export interface MonsterTextEntry {
@@ -168,8 +175,9 @@ export interface MonsterSpellcasting {
   enabled?: boolean;
   spellcastingType?: string;
   spellcastingLevel?: number;
-  spellSlots?: Record<string, { max: number; used: number; atWill?: boolean }>;
+  spellSlots?: Record<string, { max: number; used: number; atWill?: boolean; spells?: string[] }>;
   atWillSpells?: string[];
+  counterspells?: string[];
   perDaySpells?: Array<{ name: string; maxUses: number; used: number }>;
 }
 
@@ -177,7 +185,7 @@ export interface MonsterAbilities {
   enabled?: boolean;
   spellcastingType?: string;
   spellcastingLevel?: number;
-  spellSlots?: Record<string, { max: number; used: number; atWill?: boolean }>;
+  spellSlots?: Record<string, { max: number; used: number; atWill?: boolean; spells?: string[] }>;
   perDaySpells?: Array<{ name: string; maxUses: number; used: number }>;
   customFeatures?: CustomFeature[];
   legendaryActions?: { enabled: boolean; max: number; used: number };
@@ -214,11 +222,18 @@ export interface MonsterDatabaseEntry {
   lairActions?: MonsterTextEntry[];
   hasLairActions?: boolean;
   hasMythicActions?: boolean;
+  hasMultipleTurns?: boolean;
+  group?: string;
   maxPower?: number;
   powerName?: string;
+  maxReactions?: number;
   monsterAbilities?: MonsterAbilities;
   tags?: string[];
   source?: string;
+  damageResistances?: string;
+  damageImmunities?: string;
+  conditionImmunities?: string;
+  damageVulnerabilities?: string;
 }
 
 export interface CombatState {

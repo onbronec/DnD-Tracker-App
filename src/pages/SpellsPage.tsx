@@ -6,7 +6,7 @@ import { MarkdownEditor, MarkdownRenderer } from '../components/Markdown';
 import { SearchPicker } from '../components/SearchPicker';
 import { EffectModal, effectRequiresManagement } from './CombatPage';
 import { effectToString, hpClass } from '../shared/defaults';
-import { groupedSpells, isCantrip, isEpicSpell, isNormalPreparedSpell, spellIsActive } from '../shared/spells';
+import { calculatePreparedCounts, groupedSpells, isCantrip, isEpicSpell, isNormalPreparedSpell, spellIsActive } from '../shared/spells';
 import {
   ABILITIES,
   SKILLS,
@@ -258,6 +258,23 @@ function HealthConditionsPanel({
           <button className="btn success small" onClick={() => submitAction({ type: 'character.adjustHp', payload: { characterId: character.id, amount: 1 } })}>HP +1</button>
           <button className="btn success small" onClick={() => submitAction({ type: 'character.adjustHp', payload: { characterId: character.id, amount: 10 } })}>HP +10</button>
         </div>
+        <div className="quick-row">
+          <span>Reakce:</span>
+          {Array.from({ length: Math.max(0, character.maxReactions ?? 1) }, (_, reactionIndex) => {
+            const currentReactions = character.currentReactions ?? character.maxReactions ?? 1;
+            const usedReactions = (character.maxReactions ?? 1) - currentReactions;
+            const isUsed = reactionIndex < usedReactions;
+            return (
+              <button
+                key={reactionIndex}
+                className={`feature-box ${isUsed ? 'used' : ''}`}
+                onClick={() => submitAction({ type: 'character.reaction.set', payload: { characterId: character.id, value: currentReactions + (isUsed ? 1 : -1) } })}
+                aria-label={`${character.name} reaction ${reactionIndex + 1}`}
+                title="Reaction"
+              />
+            );
+          })}
+        </div>
         <div className="input-action-row">
           <input value={drafts.damage} onChange={event => setDraft('damage', event.target.value)} type="number" placeholder="Damage" data-testid={`sheet-damage-${character.name}`} />
           <button className="btn danger small" onClick={() => applyHp('damage')}>Apply</button>
@@ -324,7 +341,6 @@ function CharacterGeneral({ character, submitAction }: { character: Character; s
         <div className="stat"><span>Spell DC</span><strong>{spellSaveDc(character, adjusted.scores)}</strong><small>{bonusMeta(character, 'spellDc')}</small></div>
         <div className="stat"><span>Spell Attack</span><strong>{signed(spellAttackBonus(character, adjusted.scores))}</strong><small>{bonusMeta(character, 'spellAttack')}</small></div>
         <div className="stat"><span>Casting</span><strong>{ABILITIES.find(ability => ability.key === castingAbility)?.short}</strong></div>
-        <div className="stat"><span>Reactions</span><strong>{character.currentReactions ?? character.maxReactions ?? 1}/{character.maxReactions ?? 1}</strong></div>
       </div>
       <div className="sheet-speed-row">
         {visibleSpeeds.map(([label, value]) => (
@@ -446,6 +462,7 @@ function SheetBonusList({ title, rows }: { title: string; rows: Array<{ key: str
 }
 
 function SheetEditorModal({ character, onClose, onSave }: { character: Character; onClose: () => void; onSave: (payload: Record<string, unknown>) => Promise<unknown> }) {
+  const [maxHp, setMaxHp] = useState(String(character.maxHp || 1));
   const [proficiencyBonus, setProficiencyBonus] = useState(String(character.proficiencyBonus || 2));
   const [baseAc, setBaseAc] = useState(String(character.ac || 10));
   const [baseInitBonus, setBaseInitBonus] = useState(String(character.initBonus || 0));
@@ -483,6 +500,7 @@ function SheetEditorModal({ character, onClose, onSave }: { character: Character
     }, {} as Record<AbilityKey, number>);
     const expertise = skillExpertise;
     onSave({
+      maxHp: Math.max(1, Number(maxHp) || 1),
       proficiencyBonus: clampProficiencyBonus(Number(proficiencyBonus)),
       ac: Number(baseAc) || 10,
       initBonus: Number(baseInitBonus) || 0,
@@ -515,6 +533,10 @@ function SheetEditorModal({ character, onClose, onSave }: { character: Character
           <button className="btn" onClick={onClose}>Close</button>
         </div>
         <div className="form-grid">
+          <label className="field-card">
+            <span>Max HP</span>
+            <input value={maxHp} onChange={event => setMaxHp(event.target.value)} type="number" min={1} />
+          </label>
           <label className="field-card">
             <span>Proficiency Bonus</span>
             <input value={proficiencyBonus} onChange={event => setProficiencyBonus(event.target.value)} type="number" min={0} max={10} />
@@ -830,6 +852,9 @@ function SpellbookSection({
   const [editing, setEditing] = useState(false);
   const [preparing, setPreparing] = useState(false);
 
+  const knownCounterspells = knownSpells.filter(spell => spell.isCounterspell);
+  const knownOtherSpells = knownSpells.filter(spell => !spell.isCounterspell);
+
   return (
     <section id="sheet-spells-known" className="section sheet-section-anchor">
       <div className="section-title-row">
@@ -845,7 +870,29 @@ function SpellbookSection({
 
       {knownSpells.length === 0 && <p className="empty">No known spells yet.</p>}
       <div className="spellbook-groups">
-        {groupedSpells(knownSpells).map(group => (
+        {knownCounterspells.length > 0 && (
+          <div className="spellbook-group counterspells-section" style={{ borderLeft: '3px solid var(--purple)', paddingLeft: '12px' }}>
+            <h3>Counterspells</h3>
+            <div className="spellbook-list">
+              {knownCounterspells.map(spell => {
+                const active = spellIsActive(spell, spellbook);
+                return (
+                  <button
+                    key={spell.id}
+                    className={`spell-card ${active ? '' : 'unprepared'}`}
+                    onClick={() => setDetailSpell(spell)}
+                    data-testid={`spell-${spell.name}`}
+                  >
+                    <strong>{spell.name}</strong>
+                    <span>{spell.levelLabel || 'Spell'} · {spell.school || 'Unknown school'} · {spell.castingTime || 'Casting time unknown'}</span>
+                    {!active && <small>Known, not prepared</small>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        {groupedSpells(knownOtherSpells).map(group => (
           <div className="spellbook-group" key={group.key}>
             <h3>{group.label}</h3>
             <div className="spellbook-list">
@@ -1008,8 +1055,8 @@ function PreparedSpellsModal({
     setPrepared(current => checked ? [...new Set([...current, spell.id])] : current.filter(id => id !== spell.id));
   }
 
-  const normalCount = prepared.filter(id => spells.find(spell => spell.id === id && isNormalPreparedSpell(spell))).length;
-  const epicCount = prepared.filter(id => spells.find(spell => spell.id === id && isEpicSpell(spell))).length;
+  const { normalCount, epicCount } = calculatePreparedCounts(prepared, spells);
+  const hasPreparedCounterspell = prepared.some(id => spells.find(spell => spell.id === id)?.isCounterspell);
 
   return (
     <Modal>
@@ -1029,7 +1076,11 @@ function PreparedSpellsModal({
               <div className="spellbook-prepare-list">
                 {group.spells.map(spell => {
                   const checked = prepared.includes(spell.id);
-                  const limitedOut = !checked && ((isNormalPreparedSpell(spell) && normalCount >= spellbook.preparedNonEpicMax) || (isEpicSpell(spell) && epicCount >= spellbook.preparedEpicMax));
+                  const isCounterspellBypass = spell.isCounterspell && hasPreparedCounterspell;
+                  const limitedOut = !checked && !isCounterspellBypass && (
+                    (isNormalPreparedSpell(spell) && normalCount >= spellbook.preparedNonEpicMax) ||
+                    (isEpicSpell(spell) && epicCount >= spellbook.preparedEpicMax)
+                  );
                   return (
                     <label className="inline-check spell-prepare-row" key={spell.id}>
                       <input type="checkbox" checked={checked} disabled={limitedOut} onChange={event => toggle(spell, event.target.checked)} />
@@ -1092,9 +1143,8 @@ function normalizedSpellbook(spellbook?: CharacterSpellbook): CharacterSpellbook
 }
 
 function preparedSummary(spells: SpellDatabaseEntry[], spellbook: CharacterSpellbook) {
-  const normal = spellbook.preparedSpellIds.filter(id => spells.find(spell => spell.id === id && isNormalPreparedSpell(spell))).length;
-  const epic = spellbook.preparedSpellIds.filter(id => spells.find(spell => spell.id === id && isEpicSpell(spell))).length;
-  return `${normal}/${spellbook.preparedNonEpicMax} non-epic, ${epic}/${spellbook.preparedEpicMax} epic`;
+  const { normalCount, epicCount } = calculatePreparedCounts(spellbook.preparedSpellIds, spells);
+  return `${normalCount}/${spellbook.preparedNonEpicMax} non-epic, ${epicCount}/${spellbook.preparedEpicMax} epic`;
 }
 
 function matchingSpells(spells: SpellDatabaseEntry[], query: string) {

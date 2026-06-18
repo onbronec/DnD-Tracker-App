@@ -12,6 +12,8 @@ interface EditorProps {
   onChange: (value: string) => void;
   placeholder?: string;
   label?: string;
+  /** Optional: parse the value into named items for the inline indicator */
+  parseItems?: (value: string) => Array<{ name: string }>;
 }
 
 export function MarkdownRenderer({ text, emptyLabel = 'No notes.' }: RendererProps) {
@@ -30,12 +32,15 @@ export function MarkdownRenderer({ text, emptyLabel = 'No notes.' }: RendererPro
   );
 }
 
-export function MarkdownEditor({ value, onChange, placeholder, label = 'Markdown text' }: EditorProps) {
+export function MarkdownEditor({ value, onChange, placeholder, label = 'Markdown text', parseItems }: EditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [preview, setPreview] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
-  function applyWrap(before: string, after = before) {
+  // Parse items for the indicator (only when parseItems prop is provided)
+  const parsedItems = parseItems ? parseItems(value) : null;
+
+  function applyWrap(before: string, after = before, defaultText = label) {
     const textarea = textareaRef.current;
     if (!textarea) {
       onChange(`${value}${before}${after}`);
@@ -44,11 +49,11 @@ export function MarkdownEditor({ value, onChange, placeholder, label = 'Markdown
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const selected = value.slice(start, end);
-    const next = `${value.slice(0, start)}${before}${selected || label}${after}${value.slice(end)}`;
+    const next = `${value.slice(0, start)}${before}${selected || defaultText}${after}${value.slice(end)}`;
     onChange(next);
     window.requestAnimationFrame(() => {
       textarea.focus();
-      textarea.setSelectionRange(start + before.length, start + before.length + (selected || label).length);
+      textarea.setSelectionRange(start + before.length, start + before.length + (selected || defaultText).length);
     });
   }
 
@@ -65,15 +70,31 @@ export function MarkdownEditor({ value, onChange, placeholder, label = 'Markdown
     window.requestAnimationFrame(() => textarea.focus());
   }
 
+  // Compact indicator shown below the textarea
+  const parsedIndicator = parsedItems && parsedItems.length > 0 ? (
+    <div className="md-parsed-indicator">
+      <span className="md-parsed-chip">{parsedItems.length} item{parsedItems.length !== 1 ? 's' : ''} parsed</span>
+      {parsedItems.map((item, i) => (
+        <span key={i} className="md-parsed-name">{item.name}</span>
+      ))}
+    </div>
+  ) : parsedItems !== null ? (
+    <div className="md-parsed-indicator md-parsed-empty">
+      <span className="md-parsed-chip md-parsed-chip-empty">0 items — use <strong>1 Item</strong> button or <code>**Name.**</code> pattern</span>
+    </div>
+  ) : null;
+
   const toolbar = (
     <div className="markdown-toolbar" aria-label={`${label} formatting`}>
       <div className="markdown-toolbar-group">
+        <button type="button" className="btn small markdown-tool" onClick={() => applyWrap('**', '.** ', 'Item Name')}>1 Item</button>
         <button type="button" className="btn small markdown-tool" onClick={() => applyWrap('**')}>Bold</button>
         <button type="button" className="btn small markdown-tool" onClick={() => applyWrap('*')}>Italic</button>
         <button type="button" className="btn small markdown-tool" onClick={() => insertPrefix('## ')}>Header</button>
         <button type="button" className="btn small markdown-tool" onClick={() => insertPrefix('- ')}>List</button>
-        <button type="button" className="btn small markdown-tool" onClick={() => applyWrap('[', '](https://)')}>Link</button>
+        <button type="button" className="btn small markdown-tool" onClick={() => applyWrap('[', '](https://)') }>Link</button>
         <button type="button" className="btn small markdown-tool" onClick={() => applyWrap('@[', ']')}>Reference</button>
+        <button type="button" className="btn small markdown-tool" onClick={() => applyWrap('[br]', '', '')}>Line Break</button>
       </div>
       <div className="markdown-toolbar-group markdown-view-group">
         <button type="button" className="btn small markdown-preview-toggle" onClick={() => setPreview(value => !value)}>{preview ? 'Edit text' : 'Preview'}</button>
@@ -90,7 +111,10 @@ export function MarkdownEditor({ value, onChange, placeholder, label = 'Markdown
           <MarkdownRenderer text={value} />
         </div>
       ) : (
-        <textarea ref={textareaRef} value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} aria-label={label} />
+        <>
+          <textarea ref={textareaRef} value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} aria-label={label} />
+          {parsedIndicator}
+        </>
       )}
       {expanded && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
@@ -111,6 +135,7 @@ export function MarkdownEditor({ value, onChange, placeholder, label = 'Markdown
               placeholder={placeholder}
               aria-label={label}
             />
+            {parsedIndicator}
             <div className="markdown-preview">
               <MarkdownRenderer text={value} />
             </div>
@@ -160,6 +185,14 @@ function renderInline(
   while (index < text.length) {
     const key = `${keyPrefix}-${index}`;
     const remaining = text.slice(index);
+
+    const brMatch = remaining.match(/^\[br\]/i) || remaining.match(/^<br\s*\/?>/i);
+    if (brMatch) {
+      parts.push(<br key={key} />);
+      index += brMatch[0].length;
+      continue;
+    }
+
     const link = remaining.match(/^\[([^\]]+)\]\(([^)]+)\)/);
     if (link) {
       const href = link[2] || '';
@@ -235,7 +268,7 @@ function normalizeReferenceName(name: string) {
   return name.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
-function DatabaseReferenceModal({ reference, onClose }: { reference: DatabaseReference; onClose: () => void }) {
+export function DatabaseReferenceModal({ reference, onClose }: { reference: DatabaseReference; onClose: () => void }) {
   const item = reference.item;
   return (
     <Modal className="item-modal-backdrop">

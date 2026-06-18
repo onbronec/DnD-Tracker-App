@@ -38,3 +38,10 @@ npm.cmd run test:e2e
 ```
 
 See `README_MULTIPLAYER.md` for more operational details.
+
+## Dokumentace / Documentation
+
+- **[AGENTS.md](file:///AGENTS.md)** – Detailed rules and architectural information for AI assistants (variables, keyboard shortcuts, rules, design system, etc.).
+- **[docs/FUNCTIONALITY.md](file:///docs/FUNCTIONALITY.md)** – Detailed breakdown of the application features (Combat, Character Sheets, Inventory, Databases, History, etc.).
+- **[README_EFFECTS.md](file:///README_EFFECTS.md)** – Documentation for the dynamic condition (effects) system, including stat adjustments, leveled conditions, and dice metadata.
+- **[README_MULTIPLAYER.md](file:///README_MULTIPLAYER.md)** – Guides on roles (DM vs. Player), networking, history, and multiplayer workflows.

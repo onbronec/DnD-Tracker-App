@@ -365,6 +365,21 @@ function applyActionMutation(state, action, client = { id: 'system', role: 'play
                 ...payload
             });
             state.characters.push(character);
+            // If monster has multiple turns, automatically create a secondary turn entry
+            if (character.type === 'monster' && character.hasMultipleTurns) {
+                const secondaryId = `${character.id}_turn2`;
+                const secondaryInit = character.initiative !== null && character.initiative !== undefined
+                    ? character.initiative - 10
+                    : null;
+                const secondary = normalizeCharacter({
+                    ...clone(character),
+                    id: secondaryId,
+                    name: `${character.name} (Turn 2)`,
+                    initiative: secondaryInit,
+                    hasMultipleTurns: false // prevent recursive creation
+                });
+                state.characters.push(secondary);
+            }
             return `${character.name} pridana do trackeru`;
         }
         case 'character.remove': {
@@ -375,7 +390,13 @@ function applyActionMutation(state, action, client = { id: 'system', role: 'play
                 character.initiative = null;
                 return `${character.name} odstranena z boje`;
             }
-            state.characters = state.characters.filter(item => item.id !== payload.characterId);
+            // Remove the primary entry and any associated multi-turn entries
+            const primaryId = payload.characterId.replace(/_turn2$/, '');
+            state.characters = state.characters.filter(item =>
+                item.id !== payload.characterId &&
+                item.id !== `${primaryId}_turn2` &&
+                (payload.characterId.endsWith('_turn2') ? item.id !== primaryId : true)
+            );
             return `${character.name} odstranena`;
         }
         case 'character.activateInCombat': {
@@ -422,13 +443,20 @@ function applyActionMutation(state, action, client = { id: 'system', role: 'play
             const character = findCharacter(state, payload.characterId);
             if (!character) throw new Error('Postava neexistuje.');
             character.initiative = payload.value === '' || payload.value === null ? null : toNumber(payload.value, 0);
+            // If this is the primary of a multi-turn monster, update secondary initiative too
+            if (character.hasMultipleTurns && !character.id.endsWith('_turn2')) {
+                const secondary = findCharacter(state, `${character.id}_turn2`);
+                if (secondary && character.initiative !== null) {
+                    secondary.initiative = character.initiative - 10;
+                }
+            }
             sortInitiativePreservingTurn(state, payload.characterId);
             return `${character.name}: iniciativa ${character.initiative ?? '-'}`;
         }
         case 'character.updatePower': {
             const character = findCharacter(state, payload.characterId);
             if (!character) throw new Error('Postava neexistuje.');
-            character.currentPower = clamp(toNumber(payload.value, character.currentPower || 0), 0, character.maxPower || 0);
+            character.currentPower = Math.max(0, toNumber(payload.value, character.currentPower || 0));
             if (character.monsterAbilities?.power) character.monsterAbilities.power.current = character.currentPower;
             return `${character.name}: ${character.powerName || 'Power'} ${character.currentPower}`;
         }
@@ -623,6 +651,8 @@ function applyActionMutation(state, action, client = { id: 'system', role: 'play
             const character = findCharacter(state, payload.characterId);
             if (!character || character.type !== 'player') throw new Error('Hrac neexistuje.');
             ensureSpellShape(character);
+            character.maxHp = Math.max(1, toNumber(payload.maxHp, character.maxHp || 1));
+            character.currentHp = clamp(toNumber(character.currentHp, character.maxHp), 0, character.maxHp);
             character.proficiencyBonus = clamp(toNumber(payload.proficiencyBonus, character.proficiencyBonus || 2), 0, 10);
             character.ac = Math.max(0, toNumber(payload.ac, character.ac || 10));
             character.initBonus = toNumber(payload.initBonus, character.initBonus || 0);
@@ -771,6 +801,10 @@ function applyActionMutation(state, action, client = { id: 'system', role: 'play
             const feature = character.monsterAbilities?.customFeatures?.[Number(payload.index)];
             if (!feature) throw new Error('Feature neexistuje.');
             feature.used = clamp(toNumber(payload.used, feature.used || 0), 0, feature.maxUses || 0);
+            // Track recharge attempts - only one per turn
+            if (payload.rechargeAttempted !== undefined) {
+                feature.rechargeAttempted = Boolean(payload.rechargeAttempted);
+            }
             return `${character.name}: ${feature.name}`;
         }
         case 'monster.spellSlot.toggle': {
@@ -924,20 +958,34 @@ function rollInitiative(character) {
 
 function startCombat(state) {
     const processedGroups = new Set();
+    // First pass: roll initiative for primary entries
     state.characters.forEach(character => {
         if (!isCombatant(character)) {
             character.initiative = null;
             return;
         }
+        // Secondary turn entries get their initiative from the primary
+        if (character.id.endsWith('_turn2')) return;
         if (character.initiative === null || character.initiative === undefined) {
             const initiative = rollInitiative(character);
             character.initiative = initiative;
             if (character.groupId && !processedGroups.has(character.groupId)) {
                 processedGroups.add(character.groupId);
                 state.characters.forEach(other => {
-                    if (other.groupId === character.groupId) other.initiative = initiative;
+                    if (other.groupId === character.groupId && !other.id.endsWith('_turn2')) other.initiative = initiative;
                 });
             }
+        }
+    });
+    // Second pass: set secondary turn initiatives to 10 below their primary
+    state.characters.forEach(character => {
+        if (!character.id.endsWith('_turn2')) return;
+        const primaryId = character.id.replace(/_turn2$/, '');
+        const primary = state.characters.find(c => c.id === primaryId);
+        if (primary && primary.initiative !== null) {
+            character.initiative = primary.initiative - 10;
+        } else if (character.initiative === null || character.initiative === undefined) {
+            character.initiative = rollInitiative(character);
         }
     });
     state.characters.sort((a, b) => {
@@ -983,6 +1031,19 @@ function resetMonsterTurnResources(monster) {
     if (abilities.epicActions?.enabled && Array.isArray(abilities.epicActions.actions)) {
         abilities.epicActions.actions.forEach(action => {
             action.used = 0;
+        });
+    }
+    if (Array.isArray(abilities.customFeatures)) {
+        abilities.customFeatures.forEach(feature => {
+            if (feature.trackerType === 'round') feature.used = 0;
+            // Reset recharge attempt flag so DM can roll again on next turn
+            if (feature.trackerType === 'recharge') feature.rechargeAttempted = false;
+        });
+    }
+    if (Array.isArray(monster.customFeatures)) {
+        monster.customFeatures.forEach(feature => {
+            if (feature.trackerType === 'round') feature.used = 0;
+            if (feature.trackerType === 'recharge') feature.rechargeAttempted = false;
         });
     }
 }
@@ -1297,23 +1358,71 @@ function validatePreparedSpellIds(state, character, ids) {
     const result = [];
     let normalCount = 0;
     let epicCount = 0;
-    [...new Set(Array.isArray(ids) ? ids.map(String) : [])].forEach(id => {
+
+    const uniqueIds = [...new Set(Array.isArray(ids) ? ids.map(String) : [])];
+    const counterspellIds = [];
+    const normalSpellIds = [];
+
+    uniqueIds.forEach(id => {
         const spell = spellsById.get(id);
         if (!known.has(id) || !spell || spell.levelKey === 'cantrip') return;
-        if (isNormalSpellLevel(spell.levelKey)) {
-            if (normalCount >= character.spellbook.preparedNonEpicMax) return;
-            normalCount += 1;
+        if (spell.isCounterspell) {
+            counterspellIds.push(id);
+        } else {
+            normalSpellIds.push(id);
+        }
+    });
+
+    let hasPreparedCounterspell = false;
+
+    // Process counterspells first
+    counterspellIds.forEach(id => {
+        const spell = spellsById.get(id);
+        if (hasPreparedCounterspell) {
             result.push(id);
             return;
         }
+
+        if (isNormalSpellLevel(spell.levelKey)) {
+            if (normalCount < character.spellbook.preparedNonEpicMax) {
+                normalCount += 1;
+                hasPreparedCounterspell = true;
+                result.push(id);
+            }
+            return;
+        }
         if (isEpicSpellLevel(spell.levelKey)) {
-            if (epicCount >= character.spellbook.preparedEpicMax) return;
-            epicCount += 1;
-            result.push(id);
+            if (epicCount < character.spellbook.preparedEpicMax) {
+                epicCount += 1;
+                hasPreparedCounterspell = true;
+                result.push(id);
+            }
+            return;
+        }
+        hasPreparedCounterspell = true;
+        result.push(id);
+    });
+
+    // Process normal spells next
+    normalSpellIds.forEach(id => {
+        const spell = spellsById.get(id);
+        if (isNormalSpellLevel(spell.levelKey)) {
+            if (normalCount < character.spellbook.preparedNonEpicMax) {
+                normalCount += 1;
+                result.push(id);
+            }
+            return;
+        }
+        if (isEpicSpellLevel(spell.levelKey)) {
+            if (epicCount < character.spellbook.preparedEpicMax) {
+                epicCount += 1;
+                result.push(id);
+            }
             return;
         }
         result.push(id);
     });
+
     return result;
 }
 
@@ -1359,10 +1468,65 @@ function epicSlotsForLevel(level) {
     return key ? EPIC_SLOTS_TABLE[key] : {};
 }
 
+/**
+ * After any action, sync shared fields (HP, effects, conditions, spell slots, custom features)
+ * between a monster's primary and secondary turn entries so they stay consistent.
+ */
+function syncMultiTurnCharacters(state, changedId) {
+    if (!changedId) return;
+    const isPrimary = !changedId.endsWith('_turn2');
+    const primaryId = isPrimary ? changedId : changedId.replace(/_turn2$/, '');
+    const secondaryId = `${primaryId}_turn2`;
+    const primary = state.characters.find(c => c.id === primaryId);
+    const secondary = state.characters.find(c => c.id === secondaryId);
+    if (!primary || !secondary) return;
+
+    // Sync shared combat resources (not per-turn resources like reactions or recharge)
+    const source = isPrimary ? primary : secondary;
+    const target = isPrimary ? secondary : primary;
+
+    target.currentHp = source.currentHp;
+    target.maxHp = source.maxHp;
+    target.tempHp = source.tempHp;
+    target.ac = source.ac;
+    target.effects = clone(source.effects);
+    target.currentPower = source.currentPower;
+    target.maxPower = source.maxPower;
+
+    // Sync spell slots
+    if (source.monsterAbilities?.spellcasting?.spellSlots) {
+        if (!target.monsterAbilities) target.monsterAbilities = {};
+        if (!target.monsterAbilities.spellcasting) target.monsterAbilities.spellcasting = {};
+        target.monsterAbilities.spellcasting.spellSlots = clone(source.monsterAbilities.spellcasting.spellSlots);
+    }
+    if (source.monsterAbilities?.perDaySpells && target.monsterAbilities) {
+        target.monsterAbilities.perDaySpells = clone(source.monsterAbilities.perDaySpells);
+        if (target.monsterAbilities.spellcasting) {
+            target.monsterAbilities.spellcasting.perDaySpells = clone(source.monsterAbilities.perDaySpells);
+        }
+    }
+
+    // Sync custom features except per-turn ones (rechargeAttempted stays per-entry)
+    if (source.monsterAbilities?.customFeatures && target.monsterAbilities?.customFeatures) {
+        source.monsterAbilities.customFeatures.forEach((sf, idx) => {
+            const tf = target.monsterAbilities.customFeatures[idx];
+            if (!tf || sf.name !== tf.name) return;
+            if (sf.trackerType === 'round') return; // per-turn, don't sync
+            tf.used = sf.used;
+        });
+    }
+}
+
 function applyGameAction(state, action, client) {
     const page = action.page || pageForAction(action.type);
     const before = snapshotPage(state, page);
     const label = applyActionMutation(state, action, client);
+    // Sync multi-turn monster entries after any character or monster action
+    const payload = action.payload || {};
+    const changedId = payload.characterId || null;
+    if (changedId && (action.type.startsWith('character.') || action.type.startsWith('monster.') || action.type.startsWith('effect.'))) {
+        syncMultiTurnCharacters(state, changedId);
+    }
     const after = snapshotPage(state, page);
     const visibility = action.type.startsWith('monster.') || action.type.startsWith('database.monster') || action.type === 'database.importAll' || action.type === 'character.deleteSavedPlayer' || (action.type.startsWith('toolbelt.') && action.type !== 'toolbelt.dice.add')
         ? 'dm'

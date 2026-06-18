@@ -41,3 +41,55 @@ export function spellIsActive(spell: SpellDatabaseEntry, spellbook: CharacterSpe
   if (!spellbook.preparesSpells || isCantrip(spell)) return true;
   return spellbook.preparedSpellIds.includes(spell.id);
 }
+
+export function calculatePreparedCounts(preparedIds: string[], knownSpells: SpellDatabaseEntry[]) {
+  const spellsById = new Map(knownSpells.map(spell => [spell.id, spell]));
+  let normalCount = 0;
+  let epicCount = 0;
+  let hasPreparedCounterspell = false;
+
+  const counterspellIds: string[] = [];
+  const normalSpellIds: string[] = [];
+
+  const uniquePrepared = [...new Set(preparedIds)];
+  uniquePrepared.forEach(id => {
+    const spell = spellsById.get(id);
+    if (!spell || spell.levelKey === 'cantrip') return;
+    if (spell.isCounterspell) {
+      counterspellIds.push(id);
+    } else {
+      normalSpellIds.push(id);
+    }
+  });
+
+  // Process counterspells first
+  counterspellIds.forEach(id => {
+    const spell = spellsById.get(id);
+    if (!spell) return;
+    if (hasPreparedCounterspell) {
+      return;
+    }
+    if (isNormalPreparedSpell(spell)) {
+      normalCount += 1;
+      hasPreparedCounterspell = true;
+    } else if (isEpicSpell(spell)) {
+      epicCount += 1;
+      hasPreparedCounterspell = true;
+    } else {
+      hasPreparedCounterspell = true;
+    }
+  });
+
+  // Process normal spells
+  normalSpellIds.forEach(id => {
+    const spell = spellsById.get(id);
+    if (!spell) return;
+    if (isNormalPreparedSpell(spell)) {
+      normalCount += 1;
+    } else if (isEpicSpell(spell)) {
+      epicCount += 1;
+    }
+  });
+
+  return { normalCount, epicCount };
+}

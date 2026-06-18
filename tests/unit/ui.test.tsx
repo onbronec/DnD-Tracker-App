@@ -283,7 +283,7 @@ describe('page visual behavior', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Spells' }));
     fireEvent.change(screen.getByPlaceholderText('Search Spells'), { target: { value: 'shield' } });
     expect(screen.getByRole('heading', { name: 'Shield' })).toBeInTheDocument();
-    expect(screen.getByText(/Level 1/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Level 1/).length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByRole('button', { name: 'Add Spell' })).not.toBeInTheDocument();
   });
 
@@ -552,7 +552,7 @@ describe('page visual behavior', () => {
     const day24 = screen.getAllByRole('button').find(button => button.textContent?.startsWith('24'));
     expect(day24).toBeTruthy();
     fireEvent.click(day24 as HTMLElement);
-    expect(screen.getByText('Festival')).toBeInTheDocument();
+    expect(screen.getAllByText('Festival').length).toBeGreaterThanOrEqual(1);
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
     fireEvent.change(screen.getByLabelText('Edit event'), { target: { value: '**Festival edited**' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save Event' }));

@@ -381,7 +381,7 @@ function CalendarModal({ state, submitAction, onClose }: { state: GameState; sub
   }
 
   return (
-    <Modal>
+    <Modal className="calendar-modal-backdrop">
       <div className="modal-card tool-modal calendar-modal">
         <div className="section-title-row">
           <div><h2>World Calendar</h2><p>{calendar.weekday} {calendar.day} {calendar.month}, year {calendar.year} after the event</p></div>
@@ -411,7 +411,30 @@ function CalendarModal({ state, submitAction, onClose }: { state: GameState; sub
                     disabled={!cell.day}
                     onClick={() => cell.day && setSelectedDay(cell.day)}
                   >
-                    {cell.day && <><span>{cell.day}</span>{eventCount > 0 && <b>{eventCount}</b>}</>}
+                    {cell.day && (
+                      <>
+                        <div className="calendar-day-header">
+                          <span className="calendar-day-num">{cell.day}</span>
+                          {eventCount > 0 && <b>{eventCount}</b>}
+                        </div>
+                        {eventCount > 0 && (() => {
+                          const dayRecords = (calendar.records || []).filter(r => r.dateKey === key);
+                          const preview = dayRecords[0]?.text
+                            ? dayRecords[0].text
+                                .replace(/#+\s*/g, '')
+                                .replace(/\*\*([^*]+)\*\*/g, '$1')
+                                .replace(/\*([^*]+)\*/g, '$1')
+                                .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+                                .replace(/@\[?([^\]]+)\]?/g, '$1')
+                                .trim()
+                                .split(/\s+/)
+                                .slice(0, 5)
+                                .join(' ')
+                            : '';
+                          return preview ? <span className="calendar-day-preview">{preview}</span> : null;
+                        })()}
+                      </>
+                    )}
                   </button>
                 );
               })}

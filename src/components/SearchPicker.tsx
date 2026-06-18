@@ -71,9 +71,19 @@ function searchText(item: unknown) {
 
 function parseQuery(query: string) {
   const trimmed = query.trim();
-  const quoted = trimmed.match(/^"(.+)"$/);
+  const quoteChars = ['"', "'", '“', '”', '‘', '’'];
+  if (trimmed.length >= 2) {
+    const first = trimmed.charAt(0);
+    const last = trimmed.charAt(trimmed.length - 1);
+    if (quoteChars.includes(first) && quoteChars.includes(last)) {
+      return {
+        needle: trimmed.slice(1, -1).trim().toLowerCase(),
+        nameOnly: true
+      };
+    }
+  }
   return {
-    needle: (quoted ? quoted[1] : trimmed).toLowerCase(),
-    nameOnly: Boolean(quoted)
+    needle: trimmed.toLowerCase(),
+    nameOnly: false
   };
 }

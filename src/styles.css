@@ -1402,9 +1402,9 @@ textarea {
 .calendar-day {
   min-height: clamp(84px, 10vh, 132px);
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 6px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
   padding: 8px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -1428,13 +1428,40 @@ textarea {
   background: #122238;
 }
 
+.calendar-day-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.calendar-day-num {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
 .calendar-day b {
-  min-width: 22px;
+  min-width: 18px;
   border-radius: 999px;
-  padding: 2px 6px;
+  padding: 1px 5px;
   background: var(--purple);
   color: white;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
+  text-align: center;
+}
+
+.calendar-day-preview {
+  font-size: 0.7rem;
+  color: var(--text-muted, #9ca3af);
+  line-height: 1.3;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  text-align: left;
+  border-left: 2px solid var(--purple);
+  padding-left: 4px;
+  margin-top: 2px;
 }
 
 .toast {
@@ -1469,6 +1496,10 @@ textarea {
   border-radius: 10px;
   padding: 20px;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+}
+
+.monster-preview-modal {
+  width: min(1180px, 100%);
 }
 
 .modal-effects {
@@ -1850,4 +1881,118 @@ textarea {
   .feature-bar {
     width: min(220px, 100%);
   }
+}
+
+/* Calendar Full-Screen Overlay Styling */
+.calendar-modal-backdrop {
+  padding: 0 !important;
+  background: rgba(2, 6, 23, 0.96) !important;
+}
+
+.calendar-modal-backdrop .calendar-modal {
+  width: 100vw !important;
+  max-width: 100vw !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+  border-radius: 0 !important;
+  border: none !important;
+  padding: 30px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  box-shadow: none !important;
+  background: var(--panel) !important;
+}
+
+.calendar-modal-backdrop .calendar-layout {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  margin-top: 20px !important;
+  height: auto !important;
+}
+
+.calendar-modal-backdrop .calendar-board {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+.calendar-modal-backdrop .calendar-grid {
+  flex: 1 1 auto !important;
+  align-content: stretch !important;
+}
+
+.calendar-modal-backdrop .calendar-day {
+  height: 100% !important;
+  min-height: 50px !important;
+}
+
+.calendar-modal-backdrop .calendar-details {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  overflow-y: auto !important;
+}
+
+.calendar-modal-backdrop .calendar-details .tool-list {
+  flex: 1 1 auto !important;
+  overflow-y: auto !important;
+}
+
+.database-toolbar select {
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--panel-dark);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.9em;
+  cursor: pointer;
+  min-width: 120px;
+}
+
+.database-toolbar select:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+
+/* Markdown Parsed Items Indicator styles */
+.md-parsed-indicator {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #111827; /* Dark background */
+  border: 1px solid #374151; /* Dark gray border */
+  border-radius: 6px;
+  font-size: 0.85em;
+  color: #9ca3af;
+}
+
+.md-parsed-indicator.md-parsed-empty {
+  color: #6b7280;
+  border-style: dashed;
+  background: #1f2937;
+}
+
+.md-parsed-chip {
+  background: #0d9488; /* Teal color */
+  color: #ffffff;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+.md-parsed-chip-empty {
+  background: #4b5563; /* Slate grey */
+}
+
+.md-parsed-name {
+  background: #374151; /* Charcoal */
+  color: #f3f4f6;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid #4b5563;
 }

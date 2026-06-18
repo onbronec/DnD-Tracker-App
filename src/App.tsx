@@ -6,6 +6,7 @@ import { InventoryPage } from './pages/InventoryPage';
 import { SpellsPage } from './pages/SpellsPage';
 import { MonstersPage } from './pages/MonstersPage';
 import { DatabasesPage } from './pages/DatabasesPage';
+import { MonsterEditorPage } from './pages/MonsterEditorPage';
 import { HistoryPanel } from './components/HistoryPanel';
 import { Toolbelt } from './components/Toolbelt';
 import { DatabaseReferenceProvider } from './components/DatabaseReferences';
@@ -22,6 +23,7 @@ export function App() {
   const socket = useGameSocket();
   const [page, setPage] = useState<PageScope>('combat');
   const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
+  const [editingMonsterId, setEditingMonsterId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(true);
 
   const state = socket.state;
@@ -50,7 +52,8 @@ export function App() {
   }
 
   useEffect(() => {
-    if (!visiblePages.some(item => item.id === page)) setPage('combat');
+    const isAllowed = visiblePages.some(item => item.id === page) || (page === 'monster-editor' && isDM);
+    if (!isAllowed) setPage('combat');
   }, [isDM, page, visiblePages]);
 
   useEffect(() => {
@@ -179,7 +182,29 @@ export function App() {
               onBackToCombat={() => setPage('combat')}
             />
           )}
-          {page === 'databases' && <DatabasesPage state={state} role={socket.role} submitAction={submitPageAction} onBackToCombat={() => setPage('combat')} />}
+          {page === 'databases' && (
+            <DatabasesPage
+              state={state}
+              role={socket.role}
+              submitAction={submitPageAction}
+              onBackToCombat={() => setPage('combat')}
+              onOpenMonsterEditor={(monsterId) => {
+                setEditingMonsterId(monsterId);
+                setPage('monster-editor');
+              }}
+            />
+          )}
+          {page === 'monster-editor' && isDM && (
+            <MonsterEditorPage
+              state={state}
+              submitAction={submitPageAction}
+              editingMonsterId={editingMonsterId}
+              onBackToDatabases={() => {
+                setPage('databases');
+                setEditingMonsterId(null);
+              }}
+            />
+          )}
         </section>
         {historyOpen && (
           <HistoryPanel

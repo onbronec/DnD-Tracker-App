@@ -38,3 +38,39 @@ export function monsterHealthLabel(currentHp: number, maxHp: number): string {
   if (percent > 25) return 'Bloodied';
   return 'Critical';
 }
+
+export const SPELL_SLOTS_TABLE: Record<number, number[]> = {
+  1: [2, 0, 0, 0, 0, 0, 0, 0, 0],
+  2: [3, 0, 0, 0, 0, 0, 0, 0, 0],
+  3: [4, 2, 0, 0, 0, 0, 0, 0, 0],
+  4: [4, 3, 0, 0, 0, 0, 0, 0, 0],
+  5: [4, 3, 2, 0, 0, 0, 0, 0, 0],
+  6: [4, 3, 3, 0, 0, 0, 0, 0, 0],
+  7: [4, 3, 3, 1, 0, 0, 0, 0, 0],
+  8: [4, 3, 3, 2, 0, 0, 0, 0, 0],
+  9: [4, 3, 3, 3, 1, 0, 0, 0, 0],
+  10: [4, 3, 3, 3, 2, 0, 0, 0, 0],
+  11: [4, 3, 3, 3, 2, 1, 0, 0, 0],
+  12: [4, 3, 3, 3, 2, 1, 0, 0, 0],
+  13: [4, 3, 3, 3, 2, 1, 1, 0, 0],
+  14: [4, 3, 3, 3, 2, 1, 1, 0, 0],
+  15: [4, 3, 3, 3, 2, 1, 1, 1, 0],
+  16: [4, 3, 3, 3, 2, 1, 1, 1, 0],
+  17: [4, 3, 3, 3, 2, 1, 1, 1, 1],
+  18: [4, 3, 3, 3, 3, 1, 1, 1, 1],
+  19: [4, 3, 3, 3, 3, 2, 1, 1, 1],
+  20: [4, 3, 3, 3, 3, 2, 2, 1, 1]
+};
+
+export const EPIC_SLOTS_TABLE: Record<number, Record<string, number>> = {
+  21: { epic1: 0, epic2: 0, epic3: 0 },
+  22: { epic1: 2, epic2: 0, epic3: 0 },
+  23: { epic1: 3, epic2: 0, epic3: 0 },
+  24: { epic1: 3, epic2: 1, epic3: 0 },
+  25: { epic1: 3, epic2: 2, epic3: 0 },
+  26: { epic1: 3, epic2: 2, epic3: 1 },
+  27: { epic1: 3, epic2: 2, epic3: 1 },
+  28: { epic1: 3, epic2: 2, epic3: 1 },
+  29: { epic1: 3, epic2: 2, epic3: 1 },
+  30: { epic1: 3, epic2: 2, epic3: 1 }
+};

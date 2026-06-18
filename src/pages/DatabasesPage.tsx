@@ -1,14 +1,17 @@
 import { ChangeEvent, FormEvent, useMemo, useRef, useState } from 'react';
-import type { Character, ClientRole, GameAction, GameState } from '../shared/types';
+import type { Character, ClientRole, GameAction, GameState, MonsterDatabaseEntry } from '../shared/types';
 import { CollapsiblePanel } from '../components/CollapsiblePanel';
 import { MarkdownEditor, MarkdownRenderer } from '../components/Markdown';
 import { parseMonsterMarkdown } from '../shared/monsterParser';
+import { Modal } from '../components/Modal';
+import { MonsterDetail, monsterDatabaseEntryToPreviewCharacter } from './MonstersPage';
 
 interface Props {
   state: GameState;
   role: ClientRole;
   submitAction: (action: GameAction) => Promise<unknown>;
   onBackToCombat: () => void;
+  onOpenMonsterEditor?: (monsterId: string | null) => void;
 }
 
 type DatabaseKind = 'magic' | 'potion' | 'condition' | 'spell' | 'characters' | 'monster';
@@ -22,29 +25,124 @@ const DB_LABELS: Record<DatabaseKind, string> = {
   monster: 'Monsters'
 };
 
-export function DatabasesPage({ state, role, submitAction, onBackToCombat }: Props) {
+export function DatabasesPage({ state, role, submitAction, onBackToCombat, onOpenMonsterEditor }: Props) {
   const isDM = role === 'dm';
   const visibleTabs: DatabaseKind[] = isDM
     ? ['magic', 'potion', 'condition', 'spell', 'characters', 'monster']
     : ['magic', 'potion', 'condition', 'spell', 'characters'];
   const [active, setActive] = useState<DatabaseKind>(visibleTabs[0]);
   const [query, setQuery] = useState('');
+  const [filters, setFilters] = useState<Record<string, string>>({});
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [previewMonster, setPreviewMonster] = useState<MonsterDatabaseEntry | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const allFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const items = itemsForKind(state, active);
+
+  const filterOptions = useMemo(() => {
+    const options: Record<string, string[]> = {};
+    if (active === 'magic') {
+      options.rarity = Array.from(new Set(items.map(i => String(i.rarity || '')).filter(Boolean))).sort();
+      options.itemType = Array.from(new Set(items.map(i => String(i.itemType || '')).filter(Boolean))).sort();
+    } else if (active === 'potion') {
+      options.rarity = Array.from(new Set(items.map(i => String(i.rarity || '')).filter(Boolean))).sort();
+    } else if (active === 'condition') {
+      options.kind = Array.from(new Set(items.map(i => String(i.kind || '')).filter(Boolean))).sort();
+    } else if (active === 'spell') {
+      options.level = Array.from(new Set(items.map(i => String(i.levelLabel || '')).filter(Boolean))).sort((a, b) => {
+        const getOrder = (s: string) => {
+          if (s.toLowerCase().includes('cantrip')) return 0;
+          const num = parseInt(s);
+          if (!isNaN(num)) return num;
+          return 99;
+        };
+        return getOrder(a) - getOrder(b);
+      });
+      options.school = Array.from(new Set(items.map(i => String(i.school || '')).filter(Boolean))).sort();
+
+      const classesSet = new Set<string>();
+      items.forEach(i => {
+        const cls = i.classes;
+        if (Array.isArray(cls)) {
+          cls.forEach(c => classesSet.add(String(c)));
+        } else if (typeof cls === 'string') {
+          cls.split(/,\s*/).forEach(c => classesSet.add(c));
+        }
+      });
+      options.classes = Array.from(classesSet).filter(Boolean).sort();
+    } else if (active === 'monster') {
+      options.challenge = Array.from(new Set(items.map(i => String(i.challenge || '')).filter(Boolean))).sort((a, b) => {
+        const getCRVal = (cr: string) => {
+          if (cr.includes('/')) {
+            const [num, den] = cr.split('/').map(Number);
+            return num / den;
+          }
+          return Number(cr);
+        };
+        return getCRVal(a) - getCRVal(b);
+      });
+      options.size = Array.from(new Set(items.map(i => String(i.size || '')).filter(Boolean))).sort();
+      options.type = Array.from(new Set(items.map(i => String(i.type || i.monsterType || '')).filter(Boolean))).sort();
+      options.group = Array.from(new Set(items.map(i => String(i.group || '')).filter(Boolean))).sort();
+    }
+    return options;
+  }, [items, active]);
+
   const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return items;
-    return items.filter(item => searchableText(item).includes(needle));
-  }, [items, query]);
+    let result = items;
+
+    // Apply search query
+    const parsed = parseQuery(query);
+    if (parsed.needle) {
+      result = result.filter(item => {
+        if (parsed.nameOnly) {
+          const name = String(item.name || '').toLowerCase();
+          return name.includes(parsed.needle);
+        }
+        return searchableText(item).includes(parsed.needle);
+      });
+    }
+
+    // Apply filters
+    Object.entries(filters).forEach(([key, val]) => {
+      if (!val) return;
+      result = result.filter(item => {
+        if (key === 'classes') {
+          const cls = item.classes;
+          if (Array.isArray(cls)) {
+            return cls.map(c => String(c).toLowerCase()).includes(val.toLowerCase());
+          } else if (typeof cls === 'string') {
+            return cls.toLowerCase().includes(val.toLowerCase());
+          }
+          return false;
+        }
+        if (key === 'isCounterspell') {
+          const isCs = Boolean(item.isCounterspell || item.IsCounterspell || (active === 'spell' && item.source && String(item.source).toLowerCase() === 'counterspell'));
+          return val === 'yes' ? isCs : !isCs;
+        }
+        if (key === 'level') {
+          return String(item.levelLabel || '') === val;
+        }
+        if (key === 'type' && active === 'monster') {
+          return String(item.type || item.monsterType || '') === val;
+        }
+        return String(item[key] || '') === val;
+      });
+    });
+
+    return result;
+  }, [items, query, filters, active]);
 
   const canEditCurrent = active === 'spell' ? isDM : isDM || active !== 'monster';
   const canRemoveCurrent = isDM && active !== 'characters';
 
   function openCreate() {
+    if (active === 'monster' && onOpenMonsterEditor) {
+      onOpenMonsterEditor(null);
+      return;
+    }
     setEditing(null);
     setModalOpen(true);
   }
@@ -105,13 +203,116 @@ export function DatabasesPage({ state, role, submitAction, onBackToCombat }: Pro
       <section className="section">
         <div className="database-tabs">
           {visibleTabs.map(tab => (
-            <button key={tab} className={`nav-btn ${active === tab ? 'active' : ''}`} onClick={() => { setActive(tab); setQuery(''); }}>
+            <button key={tab} className={`nav-btn ${active === tab ? 'active' : ''}`} onClick={() => { setActive(tab); setQuery(''); setFilters({}); }}>
               {DB_LABELS[tab]}
             </button>
           ))}
         </div>
         <div className="database-toolbar">
           <input value={query} onChange={event => setQuery(event.target.value)} placeholder={`Search ${DB_LABELS[active]}`} />
+          {active === 'magic' && (
+            <>
+              <select
+                value={filters.rarity || ''}
+                onChange={e => setFilters(prev => ({ ...prev, rarity: e.target.value }))}
+              >
+                <option value="">All Rarities</option>
+                {filterOptions.rarity?.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+              <select
+                value={filters.itemType || ''}
+                onChange={e => setFilters(prev => ({ ...prev, itemType: e.target.value }))}
+              >
+                <option value="">All Types</option>
+                {filterOptions.itemType?.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </>
+          )}
+          {active === 'potion' && (
+            <select
+              value={filters.rarity || ''}
+              onChange={e => setFilters(prev => ({ ...prev, rarity: e.target.value }))}
+            >
+              <option value="">All Rarities</option>
+              {filterOptions.rarity?.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          )}
+          {active === 'condition' && (
+            <select
+              value={filters.kind || ''}
+              onChange={e => setFilters(prev => ({ ...prev, kind: e.target.value }))}
+            >
+              <option value="">All Kinds</option>
+              {filterOptions.kind?.map(k => <option key={k} value={k}>{k}</option>)}
+            </select>
+          )}
+          {active === 'spell' && (
+            <>
+              <select
+                value={filters.level || ''}
+                onChange={e => setFilters(prev => ({ ...prev, level: e.target.value }))}
+              >
+                <option value="">All Levels</option>
+                {filterOptions.level?.map(l => <option key={l} value={l}>{l}</option>)}
+              </select>
+              <select
+                value={filters.school || ''}
+                onChange={e => setFilters(prev => ({ ...prev, school: e.target.value }))}
+              >
+                <option value="">All Schools</option>
+                {filterOptions.school?.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <select
+                value={filters.classes || ''}
+                onChange={e => setFilters(prev => ({ ...prev, classes: e.target.value }))}
+              >
+                <option value="">All Classes</option>
+                {filterOptions.classes?.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <select
+                value={filters.isCounterspell || ''}
+                onChange={e => setFilters(prev => ({ ...prev, isCounterspell: e.target.value }))}
+              >
+                <option value="">All Spells</option>
+                <option value="yes">Only Counterspells</option>
+                <option value="no">Exclude Counterspells</option>
+              </select>
+            </>
+          )}
+          {active === 'monster' && (
+            <>
+              <select
+                value={filters.challenge || ''}
+                onChange={e => setFilters(prev => ({ ...prev, challenge: e.target.value }))}
+              >
+                <option value="">All CRs</option>
+                {filterOptions.challenge?.map(c => <option key={c} value={c}>CR {c}</option>)}
+              </select>
+              <select
+                value={filters.size || ''}
+                onChange={e => setFilters(prev => ({ ...prev, size: e.target.value }))}
+              >
+                <option value="">All Sizes</option>
+                {filterOptions.size?.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <select
+                value={filters.type || ''}
+                onChange={e => setFilters(prev => ({ ...prev, type: e.target.value }))}
+              >
+                <option value="">All Types</option>
+                {filterOptions.type?.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+              {(filterOptions.group?.length ?? 0) > 0 && (
+                <select
+                  value={filters.group || ''}
+                  onChange={e => setFilters(prev => ({ ...prev, group: e.target.value }))}
+                >
+                  <option value="">All Groups</option>
+                  {filterOptions.group?.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
+              )}
+            </>
+          )}
         </div>
       </section>
 
@@ -154,7 +355,15 @@ export function DatabasesPage({ state, role, submitAction, onBackToCombat }: Pro
           items={filtered}
           canEdit={canEditCurrent}
           canRemove={canRemoveCurrent}
-          onEdit={item => { setEditing(item); setModalOpen(true); }}
+          onView={active === 'monster' ? item => setPreviewMonster(item as unknown as MonsterDatabaseEntry) : undefined}
+          onEdit={item => {
+            if (active === 'monster' && onOpenMonsterEditor) {
+              onOpenMonsterEditor(String(item.id || ''));
+              return;
+            }
+            setEditing(item);
+            setModalOpen(true);
+          }}
           onRemove={id => submitAction(removeActionFor(active, id))}
         />
       )}
@@ -170,6 +379,40 @@ export function DatabasesPage({ state, role, submitAction, onBackToCombat }: Pro
           }}
         />
       )}
+
+      {previewMonster && (
+        <Modal>
+          <div className="modal-card monster-preview-modal">
+            <div className="section-title-row">
+              <div>
+                <h2>{previewMonster.name || 'Monster'} Preview</h2>
+                <p>Database entry rendered with the combat monster sheet.</p>
+              </div>
+              <div className="button-row">
+                {onOpenMonsterEditor && (
+                  <button
+                    className="btn purple"
+                    onClick={() => {
+                      const monsterId = String(previewMonster.id || '');
+                      setPreviewMonster(null);
+                      onOpenMonsterEditor(monsterId);
+                    }}
+                  >
+                    Edit
+                  </button>
+                )}
+                <button className="btn" onClick={() => setPreviewMonster(null)}>Close</button>
+              </div>
+            </div>
+            <MonsterDetail
+              monster={monsterDatabaseEntryToPreviewCharacter(previewMonster)}
+              submitAction={submitAction}
+              spellDatabase={state.spellDatabase}
+              readOnly
+            />
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -181,6 +424,25 @@ function itemsForKind(state: GameState, kind: DatabaseKind): Array<Record<string
   if (kind === 'spell') return state.spellDatabase || [];
   if (kind === 'monster') return state.monsterDatabase || [];
   return state.characters.filter(character => character.type === 'player') as unknown as Array<Record<string, unknown>>;
+}
+
+function parseQuery(query: string) {
+  const trimmed = query.trim();
+  const quoteChars = ['"', "'", '“', '”', '‘', '’'];
+  if (trimmed.length >= 2) {
+    const first = trimmed.charAt(0);
+    const last = trimmed.charAt(trimmed.length - 1);
+    if (quoteChars.includes(first) && quoteChars.includes(last)) {
+      return {
+        needle: trimmed.slice(1, -1).trim().toLowerCase(),
+        nameOnly: true
+      };
+    }
+  }
+  return {
+    needle: trimmed.toLowerCase(),
+    nameOnly: false
+  };
 }
 
 function searchableText(item: Record<string, unknown>) {
@@ -224,6 +486,7 @@ function DatabaseGrid({
   items,
   canEdit,
   canRemove,
+  onView,
   onEdit,
   onRemove
 }: {
@@ -231,6 +494,7 @@ function DatabaseGrid({
   items: Array<Record<string, unknown>>;
   canEdit: boolean;
   canRemove: boolean;
+  onView?: (item: Record<string, unknown>) => void;
   onEdit: (item: Record<string, unknown>) => void;
   onRemove: (id: string) => void;
 }) {
@@ -245,6 +509,7 @@ function DatabaseGrid({
           </div>
           {item.description || item.effect ? <MarkdownRenderer text={String(item.description || item.effect)} /> : null}
           <div className="button-row">
+            {onView && <button className="btn purple small" onClick={() => onView(item)}>View</button>}
             {canEdit && <button className="btn small" onClick={() => onEdit(item)}>Edit</button>}
             {canRemove && <button className="btn danger small" onClick={() => onRemove(String(item.id))}>Remove</button>}
           </div>
@@ -350,6 +615,7 @@ function DatabaseEditorModal({
     components: String(initial?.components || ''),
     duration: String(initial?.duration || ''),
     ritual: Boolean(initial?.ritual),
+    isCounterspell: Boolean(initial?.isCounterspell || initial?.IsCounterspell),
     page: String(initial?.page || ''),
     atHigherLevels: String(initial?.atHigherLevels || ''),
     importKey: String(initial?.importKey || ''),
@@ -362,6 +628,10 @@ function DatabaseEditorModal({
     skills: String(initial?.skills || ''),
     senses: String(initial?.senses || ''),
     languages: String(initial?.languages || ''),
+    damageResistances: String(initial?.damageResistances || ''),
+    damageImmunities: String(initial?.damageImmunities || ''),
+    conditionImmunities: String(initial?.conditionImmunities || ''),
+    damageVulnerabilities: String(initial?.damageVulnerabilities || ''),
     challenge: String(initial?.challenge || ''),
     proficiency: String(initial?.proficiency || ''),
     monsterType: String(initial?.type || ''),
@@ -435,6 +705,7 @@ function DatabaseEditorModal({
         components: form.components,
         duration: form.duration,
         ritual: Boolean(form.ritual),
+        isCounterspell: Boolean(form.isCounterspell),
         page: form.page,
         atHigherLevels: form.atHigherLevels,
         importKey: form.importKey
@@ -466,6 +737,10 @@ function DatabaseEditorModal({
         skills: form.skills,
         senses: form.senses,
         languages: form.languages,
+        damageResistances: form.damageResistances,
+        damageImmunities: form.damageImmunities,
+        conditionImmunities: form.conditionImmunities,
+        damageVulnerabilities: form.damageVulnerabilities,
         challenge: form.challenge,
         proficiency: form.proficiency,
         type: form.monsterType,
@@ -530,6 +805,10 @@ function DatabaseEditorModal({
       skills: parsed.skills || '',
       senses: parsed.senses || '',
       languages: parsed.languages || '',
+      damageResistances: (parsed as any).damageResistances || '',
+      damageImmunities: (parsed as any).damageImmunities || '',
+      conditionImmunities: (parsed as any).conditionImmunities || '',
+      damageVulnerabilities: (parsed as any).damageVulnerabilities || '',
       challenge: parsed.challenge || '',
       proficiency: parsed.proficiency || '',
       monsterType: parsed.type || '',
@@ -627,6 +906,10 @@ function DatabaseEditorModal({
                 <input type="checkbox" checked={Boolean(form.ritual)} onChange={event => update('ritual', event.target.checked)} />
                 Ritual
               </label>
+              <label className="inline-check">
+                <input type="checkbox" checked={Boolean(form.isCounterspell)} onChange={event => update('isCounterspell', event.target.checked)} />
+                Counterspell
+              </label>
             </>
           )}
           {kind === 'monster' && (
@@ -649,6 +932,10 @@ function DatabaseEditorModal({
               <input value={String(form.skills)} onChange={event => update('skills', event.target.value)} placeholder="Skills" />
               <input value={String(form.senses)} onChange={event => update('senses', event.target.value)} placeholder="Senses" />
               <input value={String(form.languages)} onChange={event => update('languages', event.target.value)} placeholder="Languages" />
+              <input value={String(form.damageResistances)} onChange={event => update('damageResistances', event.target.value)} placeholder="Damage resistances" />
+              <input value={String(form.damageImmunities)} onChange={event => update('damageImmunities', event.target.value)} placeholder="Damage immunities" />
+              <input value={String(form.conditionImmunities)} onChange={event => update('conditionImmunities', event.target.value)} placeholder="Condition immunities" />
+              <input value={String(form.damageVulnerabilities)} onChange={event => update('damageVulnerabilities', event.target.value)} placeholder="Damage vulnerabilities" />
               <input value={String(form.challenge)} onChange={event => update('challenge', event.target.value)} placeholder="Challenge" />
               <input value={String(form.proficiency)} onChange={event => update('proficiency', event.target.value)} placeholder="Proficiency" />
               <input value={String(form.monsterType)} onChange={event => update('monsterType', event.target.value)} placeholder="Type" />
@@ -880,7 +1167,7 @@ function summaryFor(kind: DatabaseKind, item: Record<string, unknown>) {
     const dice = item.hasDice ? ` · ${item.defaultDiceCount || 1}d${item.defaultDiceSides || 4}${item.defaultDamageType ? ` ${item.defaultDamageType}` : ''}` : '';
     return `${item.kind || 'neutral'}${item.hasLevels ? ` · levels 1-${item.maxLevel || 6}` : ''}${dice}`;
   }
-  if (kind === 'spell') return `${item.levelLabel || 'Spell'} · ${item.school || 'Unknown school'} · ${Array.isArray(item.classes) ? item.classes.join(', ') : item.classes || 'No classes'}`;
+  if (kind === 'spell') return `${item.levelLabel || 'Spell'} · ${item.school || 'Unknown school'} · ${Array.isArray(item.classes) ? item.classes.join(', ') : item.classes || 'No classes'}${item.isCounterspell ? ' · Counterspell' : ''}`;
   return `HP ${item.hp || item.maxHp || '-'} · AC ${item.ac || '-'} · Init ${item.initBonus || 0}`;
 }
 

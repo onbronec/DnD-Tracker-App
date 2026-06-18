@@ -496,8 +496,33 @@ function plainPreview(text: string) {
   return text.replace(/[#*_`[\]()]/g, '').replace(/\s+/g, ' ').trim().slice(0, 120);
 }
 
+function parseQuery(query: string) {
+  const trimmed = query.trim();
+  const quoteChars = ['"', "'", '“', '”', '‘', '’'];
+  if (trimmed.length >= 2) {
+    const first = trimmed.charAt(0);
+    const last = trimmed.charAt(trimmed.length - 1);
+    if (quoteChars.includes(first) && quoteChars.includes(last)) {
+      return {
+        needle: trimmed.slice(1, -1).trim().toLowerCase(),
+        nameOnly: true
+      };
+    }
+  }
+  return {
+    needle: trimmed.toLowerCase(),
+    nameOnly: false
+  };
+}
+
 function matchingItems<T extends Record<string, unknown>>(items: T[], query: string) {
-  const needle = query.trim().toLowerCase();
-  if (!needle) return items;
-  return items.filter(item => Object.values(item).join(' ').toLowerCase().includes(needle));
+  const parsed = parseQuery(query);
+  if (!parsed.needle) return items;
+  return items.filter(item => {
+    if (parsed.nameOnly) {
+      const name = String(item.name || item.spellName || '').toLowerCase();
+      return name.includes(parsed.needle);
+    }
+    return Object.values(item).join(' ').toLowerCase().includes(parsed.needle);
+  });
 }

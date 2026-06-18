@@ -203,18 +203,40 @@ function AddCharacterForm({ submitAction }: { submitAction: Props['submitAction'
 function AddMonsterFromDatabase({ monsters, submitAction }: { monsters: MonsterDatabaseEntry[]; submitAction: Props['submitAction'] }) {
   const [selectedMonster, setSelectedMonster] = useState<MonsterDatabaseEntry | null>(null);
   const [count, setCount] = useState('1');
+  const [groupCount, setGroupCount] = useState('1');
+  const [groupFilter, setGroupFilter] = useState('');
   const [search, setSearch] = useState('');
-  const matchingMonsters = matchingItems(monsters, search);
+
+  // Extract distinct groups from database
+  const availableGroups = useMemo(() => {
+    const groups = new Set<string>();
+    monsters.forEach(m => { if (m.group) groups.add(m.group); });
+    return Array.from(groups).sort();
+  }, [monsters]);
+
+  // Pre-filter by group before text search
+  const groupFiltered = groupFilter ? monsters.filter(m => m.group === groupFilter) : monsters;
+  const matchingMonsters = matchingItems(groupFiltered, search);
 
   async function addMonster() {
     const monster = selectedMonster && matchingMonsters.includes(selectedMonster) ? selectedMonster : matchingMonsters[0] || monsters[0];
     if (!monster) return;
     const copies = Math.max(1, Number(count) || 1);
+    const groups = Math.min(copies, Math.max(1, Number(groupCount) || 1));
+    // Assign each copy to a group for shared initiative
+    const groupIds: string[] = [];
+    for (let g = 0; g < groups; g++) {
+      groupIds.push(`grp_${Date.now()}_${g}`);
+    }
+
     for (let index = 0; index < copies; index += 1) {
       const name = copies > 1 ? `${String(monster.name || 'Monster')} ${index + 1}` : String(monster.name || 'Monster');
       const power = monster.monsterAbilities?.power;
       const maxPower = Number(power?.max ?? monster.maxPower ?? 0) || 0;
       const currentPower = Number(power?.current ?? maxPower) || 0;
+      const groupIndex = groups > 1 ? index % groups : 0;
+      const gId = groups > 1 ? groupIds[groupIndex] : null;
+      const gName = groups > 1 ? `Group ${groupIndex + 1}` : null;
       await submitAction({
         type: 'character.add',
         payload: {
@@ -229,6 +251,9 @@ function AddMonsterFromDatabase({ monsters, submitAction }: { monsters: MonsterD
           maxPower,
           currentPower,
           powerName: String(power?.name || monster.powerName || 'Power'),
+          groupId: gId,
+          groupName: gName,
+          hasMultipleTurns: Boolean(monster.hasMultipleTurns),
           monsterData: monster,
           monsterAbilities: monster.monsterAbilities
         }
@@ -264,21 +289,38 @@ function AddMonsterFromDatabase({ monsters, submitAction }: { monsters: MonsterD
 
   return (
     <div className="stack compact-stack">
+      {availableGroups.length > 0 && (
+        <select
+          value={groupFilter}
+          onChange={e => { setGroupFilter(e.target.value); setSelectedMonster(null); setSearch(''); }}
+          title="Filter monsters by group / category"
+        >
+          <option value="">All Groups</option>
+          {availableGroups.map(g => <option key={g} value={g}>{g}</option>)}
+        </select>
+      )}
       <SearchPicker
-        items={monsters}
+        items={groupFiltered}
         query={search}
         onQueryChange={setSearch}
-        selectedId={String((selectedMonster || monsters[0])?.id || '')}
+        selectedId={String((selectedMonster || matchingMonsters[0])?.id || '')}
         onSelect={setSelectedMonster}
         placeholder="Search monsters"
         getId={monster => String(monster.id)}
         getLabel={monster => String(monster.name || 'Monster')}
-        getMeta={monster => `HP ${monster.hp || monster.maxHp || '-'} · AC ${monster.ac || '-'}`}
-        getDescription={monster => String(monster.description || monster.statblock || '').slice(0, 120)}
+        getMeta={monster => `HP ${monster.hp || monster.maxHp || '-'} · AC ${monster.ac || '-'}` + (monster.group ? ` · ${monster.group}` : '')}
+        getDescription={monster => String(monster.description || '').slice(0, 120)}
       />
       <div className="button-row">
-      <input className="small-input" type="number" min={1} value={count} onChange={event => setCount(event.target.value)} />
-      <button className="btn success" onClick={addMonster}>Add to combat</button>
+        <label title="Total number of copies to add" style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.9em' }}>
+          Count:
+          <input className="small-input" type="number" min={1} value={count} onChange={event => setCount(event.target.value)} style={{ width: '60px' }} />
+        </label>
+        <label title="Number of initiative groups — monsters in the same group share a single initiative roll" style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.9em' }}>
+          Groups:
+          <input className="small-input" type="number" min={1} value={groupCount} onChange={event => setGroupCount(event.target.value)} style={{ width: '60px' }} />
+        </label>
+        <button className="btn success" onClick={addMonster}>Add to combat</button>
       </div>
     </div>
   );
@@ -387,7 +429,6 @@ function CharacterCard({
         <Stat label="Temp" value={String(character.tempHp || 0)} />
         <Stat label="AC" value={String(armorClass(character))} />
         <Stat label="Init" value={String(character.initiative ?? '-')} />
-        <Stat label="React" value={`${character.currentReactions ?? character.maxReactions ?? 1}/${character.maxReactions ?? 1}`} />
         {isDM && character.type === 'monster' && <Stat label={character.powerName || 'Power'} value={`${character.currentPower || 0}/${character.maxPower || 0}`} />}
       </div>
 
@@ -429,16 +470,46 @@ function CharacterCard({
             <button className="btn danger small" onClick={() => submitAction({ type: 'character.adjustHp', payload: { characterId: character.id, amount: -10 } })}>HP -10</button>
             <button className="btn success small" onClick={() => submitAction({ type: 'character.adjustHp', payload: { characterId: character.id, amount: 1 } })}>HP +1</button>
             <button className="btn success small" onClick={() => submitAction({ type: 'character.adjustHp', payload: { characterId: character.id, amount: 10 } })}>HP +10</button>
+            {character.type === 'monster' && (
+              <>
+                <button
+                  className="btn danger small"
+                  onClick={() => submitAction({
+                    type: 'character.updatePower',
+                    payload: {
+                      characterId: character.id,
+                      value: (character.currentPower ?? 0) - 1
+                    }
+                  })}
+                >
+                  {character.monsterAbilities?.power?.name || 'Power'} -1
+                </button>
+                <button
+                  className="btn success small"
+                  onClick={() => submitAction({
+                    type: 'character.updatePower',
+                    payload: {
+                      characterId: character.id,
+                      value: (character.currentPower ?? 0) + 1
+                    }
+                  })}
+                >
+                  {character.monsterAbilities?.power?.name || 'Power'} +1
+                </button>
+              </>
+            )}
           </div>
           <div className="quick-row">
+            <span>Reakce:</span>
             {Array.from({ length: Math.max(0, character.maxReactions ?? 1) }, (_, reactionIndex) => {
               const currentReactions = character.currentReactions ?? character.maxReactions ?? 1;
-              const isAvailable = reactionIndex < currentReactions;
+              const usedReactions = (character.maxReactions ?? 1) - currentReactions;
+              const isUsed = reactionIndex < usedReactions;
               return (
                 <button
                   key={reactionIndex}
-                  className={`feature-box ${isAvailable ? '' : 'used'}`}
-                  onClick={() => submitAction({ type: 'character.reaction.set', payload: { characterId: character.id, value: currentReactions + (isAvailable ? -1 : 1) } })}
+                  className={`feature-box ${isUsed ? 'used' : ''}`}
+                  onClick={() => submitAction({ type: 'character.reaction.set', payload: { characterId: character.id, value: currentReactions + (isUsed ? 1 : -1) } })}
                   aria-label={`${character.name} reaction ${reactionIndex + 1}`}
                   title="Reaction"
                 />
@@ -732,11 +803,37 @@ function conditionTooltip(condition?: Record<string, unknown>) {
   return String(condition.description || condition.effect || condition.name || 'Condition');
 }
 
-function matchingItems<T>(items: T[], query: string) {
-  const needle = query.trim().toLowerCase();
-  if (!needle) return items;
-  return items.filter(item => Object.values(item as Record<string, unknown>).join(' ').toLowerCase().includes(needle));
+function parseQuery(query: string) {
+  const trimmed = query.trim();
+  const quoteChars = ['"', "'", '“', '”', '‘', '’'];
+  if (trimmed.length >= 2) {
+    const first = trimmed.charAt(0);
+    const last = trimmed.charAt(trimmed.length - 1);
+    if (quoteChars.includes(first) && quoteChars.includes(last)) {
+      return {
+        needle: trimmed.slice(1, -1).trim().toLowerCase(),
+        nameOnly: true
+      };
+    }
+  }
+  return {
+    needle: trimmed.toLowerCase(),
+    nameOnly: false
+  };
 }
+
+function matchingItems<T>(items: T[], query: string) {
+  const parsed = parseQuery(query);
+  if (!parsed.needle) return items;
+  return items.filter(item => {
+    if (parsed.nameOnly) {
+      const name = String((item as Record<string, any>).name || '').toLowerCase();
+      return name.includes(parsed.needle);
+    }
+    return Object.values(item as Record<string, unknown>).join(' ').toLowerCase().includes(parsed.needle);
+  });
+}
+
 
 function entriesToDescription(entries?: Array<{ name: string; description: string }>) {
   return (entries || []).map(entry => entry.description || `**${entry.name}.**`).join('\n\n');

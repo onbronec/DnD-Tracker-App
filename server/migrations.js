@@ -191,7 +191,9 @@ function normalizeCharacter(char) {
         sheetBonuses: Array.isArray(char.sheetBonuses) ? char.sheetBonuses.map(normalizeSheetBonus) : [],
         sheetGeneral: normalizeSheetGeneral(char.sheetGeneral),
         inventory: normalizeInventory(char.inventory),
-        spellbook: normalizeSpellbook(char.spellbook)
+        spellbook: normalizeSpellbook(char.spellbook),
+        hasMultipleTurns: char.hasMultipleTurns !== undefined ? Boolean(char.hasMultipleTurns) : (char.monsterData ? Boolean(char.monsterData.hasMultipleTurns) : false),
+        group: char.group !== undefined ? String(char.group).trim() : (char.monsterData ? String(char.monsterData.group || '').trim() : '')
     };
 }
 
@@ -212,6 +214,7 @@ function normalizeSpell(spell) {
         components: String(source.components || source.Components || ''),
         duration: String(source.duration || source.Duration || ''),
         ritual: Boolean(source.ritual || source.asRitual || source['As a Ritual']),
+        isCounterspell: Boolean(source.isCounterspell || source.IsCounterspell || String(source.source || source.Source || '').toLowerCase() === 'counterspell'),
         source: String(source.source || source.Source || ''),
         page: String(source.page || source.Page || ''),
         description: String(source.description || source.text || source.Text || ''),
@@ -285,6 +288,7 @@ function normalizeMonsterAbilities(abilities, source = {}) {
             spellcastingLevel: Number(spellcasting.spellcastingLevel || current.spellcastingLevel) || 0,
             spellSlots: normalizeMonsterSpellSlots(spellSlots),
             atWillSpells: Array.isArray(spellcasting.atWillSpells) ? spellcasting.atWillSpells.map(String) : [],
+            counterspells: Array.isArray(spellcasting.counterspells) ? spellcasting.counterspells.map(String) : [],
             perDaySpells: normalizeMonsterPerDaySpells(perDaySpells)
         },
         spellSlots: normalizeMonsterSpellSlots(spellSlots),
@@ -317,7 +321,8 @@ function normalizeMonsterSpellSlots(slots) {
         result[String(level)] = {
             max: Math.max(0, Number(slot.max) || 0),
             used: Math.max(0, Number(slot.used) || 0),
-            atWill: Boolean(slot.atWill)
+            atWill: Boolean(slot.atWill),
+            spells: Array.isArray(slot.spells) ? slot.spells.map(String) : []
         };
     });
     return result;
@@ -372,9 +377,15 @@ function normalizeMonsterDbItem(monster) {
         lairActions: normalizeMonsterTextEntries(source.lairActions),
         hasLairActions: Boolean(source.hasLairActions || (source.lairActions || []).length),
         hasMythicActions: Boolean(source.hasMythicActions || (source.mythicActions || []).length),
+        hasMultipleTurns: Boolean(source.hasMultipleTurns),
+        group: source.group ? String(source.group).trim() : '',
         monsterAbilities: normalizeMonsterAbilities(source.monsterAbilities, { maxPower, powerName, currentPower: source.currentPower }),
         tags: normalizeTags(source.tags),
-        source: source.source || ''
+        source: source.source || '',
+        damageResistances: String(source.damageResistances || ''),
+        damageImmunities: String(source.damageImmunities || ''),
+        conditionImmunities: String(source.conditionImmunities || ''),
+        damageVulnerabilities: String(source.damageVulnerabilities || '')
     };
 }
 
